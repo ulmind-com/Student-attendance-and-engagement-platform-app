@@ -450,11 +450,11 @@ export default function StudentsScreen() {
               <View>
                 <Text style={{ fontSize: 12, fontWeight: '800', color: '#64748b', marginBottom: 8, letterSpacing: 0.5 }}>ASSIGNED CLASS</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {classes.length > 0 ? classes.map((c) => {
+                  {classes.length > 0 ? classes.map((c, idx) => {
                     const cName = typeof c === 'string' ? c : c.name;
                     return (
                       <TouchableOpacity 
-                        key={cName}
+                        key={`${cName}-${idx}`}
                         onPress={() => setNewClass(cName)}
                         style={{ backgroundColor: newClass === cName ? '#faf5ff' : '#f8fafc', borderWidth: 1.5, borderColor: newClass === cName ? '#9333ea' : '#cbd5e1', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10 }}
                       >
@@ -652,11 +652,11 @@ export default function StudentsScreen() {
                     <View>
                       <Text style={{ fontSize: 11, fontWeight: '800', color: '#64748b', marginBottom: 8, letterSpacing: 0.5 }}>CLASS</Text>
                       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                        {classes.length > 0 ? classes.map((c) => {
+                        {classes.length > 0 ? classes.map((c, idx) => {
                           const cName = typeof c === 'string' ? c : c.name;
                           return (
                             <TouchableOpacity 
-                              key={cName}
+                              key={`${cName}-${idx}`}
                               onPress={() => setEditClass(cName)}
                               style={{ backgroundColor: editClass === cName ? '#faf5ff' : '#f8fafc', borderWidth: 1.5, borderColor: editClass === cName ? '#9333ea' : '#cbd5e1', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8 }}
                             >
