@@ -5,13 +5,26 @@ import { Search, Calendar as CalendarIcon, Printer, Clock, AlertTriangle, Chevro
 const { width } = Dimensions.get('window');
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://kids-attendance-production.up.railway.app';
 
+function getUSATodayDateStr() {
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(new Date());
+  } catch (e) {
+    return new Date().toISOString().split('T')[0];
+  }
+}
+
 export default function AlertsScreen() {
   const [students, setStudents] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
   const currentDateFormatted = useMemo(() => {
-    return new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }).toUpperCase();
+    return new Date().toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric" }).toUpperCase();
   }, []);
 
   useEffect(() => {
@@ -33,7 +46,7 @@ export default function AlertsScreen() {
   const vulnerableStudents = useMemo(() => {
     return students.filter(s => {
       // Find latest checkin today
-      const todayIso = new Date().toISOString().split('T')[0];
+      const todayIso = getUSATodayDateStr();
       const latestEntry = s.timeline?.find((e: any) => e.day === "Today" || e.date === todayIso) 
         || (s.timeline && s.timeline[s.timeline.length - 1]);
       
@@ -147,7 +160,7 @@ export default function AlertsScreen() {
         ) : (
           <View style={{ gap: 16 }}>
             {filteredAlerts.map(student => {
-              const todayIso = new Date().toISOString().split('T')[0];
+              const todayIso = getUSATodayDateStr();
               const latestCheckin = student.timeline?.find((e: any) => e.day === "Today" || e.date === todayIso)
                 || (student.timeline && student.timeline[student.timeline.length - 1])
                 || { score: 3, emoji: '😢', emotions: ['Sad', 'Mad'], journal_text: 'Feeling dynamic support!' };

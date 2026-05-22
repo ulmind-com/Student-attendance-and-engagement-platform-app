@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, SafeAreaView, KeyboardAvoidingView, Platform, Image, ActivityIndicator, Alert, Modal, Dimensions } from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView, KeyboardAvoidingView, Platform, Image, ActivityIndicator, Alert, Modal, Dimensions } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { GraduationCap, ArrowRight, CheckCircle2, User, Lock, X } from 'lucide-react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -7,6 +8,27 @@ import { MotiView, MotiText } from 'moti';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Ellipse, Line, Circle, Path, Rect, Text as SvgText } from 'react-native-svg';
 import LottieView from 'lottie-react-native';
+
+// Custom Touchable using Pressable to avoid NativeWind v4 link-injection bug
+const Touchable = ({ children, style, onPress, className, disabled, onLongPress, delayLongPress, ...props }: any) => {
+  return (
+    <Pressable
+      onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={delayLongPress}
+      className={className}
+      disabled={disabled}
+      style={({ pressed }) => [
+        style,
+        pressed && { opacity: 0.6 },
+        disabled && { opacity: 0.3 }
+      ]}
+      {...props}
+    >
+      {children}
+    </Pressable>
+  );
+};
 
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
@@ -35,7 +57,25 @@ function LoginClockMascot() {
   }, []);
 
   const CX = 100, CY = 100, R = 75;
-  const sec = time.getSeconds(), min = time.getMinutes() + sec / 60, hr = (time.getHours() % 12) + min / 60;
+  const getUSATime = (d: Date) => {
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York',
+        hour: 'numeric',
+        minute: 'numeric',
+        second: 'numeric',
+        hour12: false
+      }).formatToParts(d);
+      const hrVal = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+      const minVal = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+      const secVal = parseInt(parts.find(p => p.type === 'second')?.value || '0', 10);
+      return { hr: hrVal, min: minVal, sec: secVal };
+    } catch (e) {
+      return { hr: d.getHours(), min: d.getMinutes(), sec: d.getSeconds() };
+    }
+  };
+  const { hr: usaHr, min: usaMin, sec: usaSec } = getUSATime(time);
+  const sec = usaSec, min = usaMin + sec / 60, hr = (usaHr % 12) + min / 60;
   const hand = (a: number, l: number) => { const r = ((a - 90) * Math.PI) / 180; return { x: CX + l * Math.cos(r), y: CY + l * Math.sin(r) }; };
   const sH = hand((sec / 60) * 360, 60), mH = hand((min / 60) * 360, 50), hH = hand((hr / 12) * 360, 35);
 
@@ -412,7 +452,7 @@ export default function LoginScreen() {
               from={{ opacity: 0, translateX: -20 }} animate={{ opacity: 1, translateX: 0 }}
               className="flex-row items-center mb-6 px-2"
             >
-              <TouchableOpacity activeOpacity={0.9} onPress={() => setShowTeacherModal(true)} onLongPress={() => setShowTeacherModal(true)} delayLongPress={1000}>
+              <Touchable activeOpacity={0.9} onPress={() => setShowTeacherModal(true)} onLongPress={() => setShowTeacherModal(true)} delayLongPress={1000}>
                 {schoolLogo ? (
                   <View className="w-10 h-10 rounded-xl bg-white shadow-sm border border-purple-100 overflow-hidden mr-3">
                     <Image source={{ uri: schoolLogo }} className="w-full h-full" resizeMode="contain" />
@@ -422,7 +462,7 @@ export default function LoginScreen() {
                     <Text className="text-white text-lg">✨</Text>
                   </View>
                 )}
-              </TouchableOpacity>
+              </Touchable>
               <View className="flex-1">
                 <Text className="font-black text-slate-800 text-sm leading-tight tracking-tight">
                   {schoolName.split('\n').join(' ')} 💫
@@ -479,7 +519,7 @@ export default function LoginScreen() {
                         </View>
                         <ScrollView keyboardShouldPersistTaps="handled">
                           {suggestions.map((s, i) => (
-                            <TouchableOpacity key={i} onPress={() => selectStudent(s)} className="flex-row items-center p-3 border-b border-purple-50/50 hover:bg-purple-50">
+                            <Touchable key={i} onPress={() => selectStudent(s)} className="flex-row items-center p-3 border-b border-purple-50/50 hover:bg-purple-50">
                               <View className="w-10 h-10 rounded-xl bg-purple-100 items-center justify-center mr-3 overflow-hidden">
                                 {s.profilePhoto ? (
                                   <Image source={{ uri: s.profilePhoto }} className="w-full h-full" />
@@ -493,7 +533,7 @@ export default function LoginScreen() {
                                 </Text>
                                 <Text className="text-[11px] font-semibold text-slate-400">Roll: {s.rollNumber} • {s.className || s.class_name}</Text>
                               </View>
-                            </TouchableOpacity>
+                            </Touchable>
                           ))}
                         </ScrollView>
                       </View>
@@ -536,7 +576,7 @@ export default function LoginScreen() {
                     <Text className="text-[10px] text-slate-400 font-semibold mt-2 ml-1">💡 Your teacher gives you this every morning</Text>
                   </View>
 
-                  <TouchableOpacity onPress={handleStudentLogin} disabled={isLoginLoading} activeOpacity={0.8} className="mt-2">
+                  <Touchable onPress={handleStudentLogin} disabled={isLoginLoading} activeOpacity={0.8} className="mt-2">
                     <LinearGradient
                       colors={['#a855f7', '#db2777']}
                       start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
@@ -551,20 +591,20 @@ export default function LoginScreen() {
                         </>
                       )}
                     </LinearGradient>
-                  </TouchableOpacity>
+                  </Touchable>
                   
                 </View>
               </View>
             </View>
 
             {/* Dedicated Teacher Login Button */}
-            <TouchableOpacity 
+            <Touchable 
               onPress={() => router.push('/admin')} 
               className="mt-6 flex-row items-center justify-center gap-2 py-3"
             >
               <Lock size={14} color="#94a3b8" />
               <Text className="text-slate-500 font-bold text-sm">Teacher / Admin Login</Text>
-            </TouchableOpacity>
+            </Touchable>
 
           </ScrollView>
         </KeyboardAvoidingView>
@@ -584,9 +624,9 @@ export default function LoginScreen() {
                   <Text className="text-[11px] font-medium text-white/70">Admin Dashboard Access</Text>
                 </View>
               </View>
-              <TouchableOpacity onPress={() => { setShowTeacherModal(false); setLoginError(""); }} className="w-8 h-8 rounded-full bg-white/20 items-center justify-center">
+              <Touchable onPress={() => { setShowTeacherModal(false); setLoginError(""); }} className="w-8 h-8 rounded-full bg-white/20 items-center justify-center">
                 <X color="white" size={20} />
-              </TouchableOpacity>
+              </Touchable>
             </LinearGradient>
 
             <View className="p-6">
@@ -623,12 +663,12 @@ export default function LoginScreen() {
                 </View>
               ) : null}
 
-              <TouchableOpacity activeOpacity={0.8} onPress={handleTeacherLogin}>
+              <Touchable activeOpacity={0.8} onPress={handleTeacherLogin}>
                 <LinearGradient colors={['#1e293b', '#334155']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} className="w-full py-3.5 rounded-xl flex-row items-center justify-center shadow-lg">
                   <Lock color="white" size={14} className="mr-2" />
                   <Text className="text-white font-black text-sm">Access Admin Dashboard</Text>
                 </LinearGradient>
-              </TouchableOpacity>
+              </Touchable>
             </View>
           </MotiView>
         </View>

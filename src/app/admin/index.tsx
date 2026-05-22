@@ -7,11 +7,36 @@ import { MotiView } from 'moti';
 const { width } = Dimensions.get('window');
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://kids-attendance-production.up.railway.app';
 
+function getUSATodayDateStr() {
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(new Date());
+  } catch (e) {
+    return new Date().toISOString().split('T')[0];
+  }
+}
+
 function getGreeting() {
-  const h = new Date().getHours();
-  if (h < 12) return { text: "Good Morning", emoji: "🌅" };
-  if (h < 17) return { text: "Good Afternoon", emoji: "☀️" };
-  return { text: "Good Evening", emoji: "🌙" };
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      hour: 'numeric',
+      hour12: false
+    });
+    const h = parseInt(formatter.format(new Date()), 10);
+    if (h < 12) return { text: "Good Morning", emoji: "🌅" };
+    if (h < 17) return { text: "Good Afternoon", emoji: "☀️" };
+    return { text: "Good Evening", emoji: "🌙" };
+  } catch (e) {
+    const h = new Date().getHours();
+    if (h < 12) return { text: "Good Morning", emoji: "🌅" };
+    if (h < 17) return { text: "Good Afternoon", emoji: "☀️" };
+    return { text: "Good Evening", emoji: "🌙" };
+  }
 }
 
 export default function AdminDashboard() {
@@ -55,8 +80,8 @@ export default function AdminDashboard() {
 
     const updateClock = () => {
       const now = new Date();
-      setCurrentTime(now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true }));
-      setCurrentDate(now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }).toUpperCase());
+      setCurrentTime(now.toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true }));
+      setCurrentDate(now.toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric" }).toUpperCase());
     };
     updateClock();
     const timer = setInterval(updateClock, 1000);
@@ -68,13 +93,13 @@ export default function AdminDashboard() {
   }, []);
 
   const totalStudents = students.length;
-  const checkedInToday = students.filter(s => s.timeline?.some((e: any) => e.day === "Today" || e.date === new Date().toISOString().split('T')[0])).length;
+  const checkedInToday = students.filter(s => s.timeline?.some((e: any) => e.day === "Today" || e.date === getUSATodayDateStr())).length;
   const absentCount = totalStudents - checkedInToday;
   const riskCount = students.filter(s => s.risk !== "Stable" && s.risk !== undefined).length;
   
   const avgMoodRaw = students.length > 0
     ? (students.reduce((acc, s) => {
-        const todayEntry = s.timeline?.find((e: any) => e.day === "Today" || e.date === new Date().toISOString().split('T')[0]);
+        const todayEntry = s.timeline?.find((e: any) => e.day === "Today" || e.date === getUSATodayDateStr());
         return acc + (todayEntry ? todayEntry.score : 7);
       }, 0) / students.length)
     : 0;
@@ -82,7 +107,7 @@ export default function AdminDashboard() {
 
   // Derive check-ins for the live feed
   const liveCheckins = students.map(s => {
-    const todayEntry = s.timeline?.find((e: any) => e.day === "Today" || e.date === new Date().toISOString().split('T')[0]);
+    const todayEntry = s.timeline?.find((e: any) => e.day === "Today" || e.date === getUSATodayDateStr());
     return {
       id: s.rollNumber,
       name: `${s.firstName} ${s.lastInitial || ''}`,
@@ -99,7 +124,7 @@ export default function AdminDashboard() {
 
   // Calculate mood distribution categories
   const moodCounts = students.reduce((acc, s) => {
-    const todayEntry = s.timeline?.find((e: any) => e.day === "Today" || e.date === new Date().toISOString().split('T')[0]);
+    const todayEntry = s.timeline?.find((e: any) => e.day === "Today" || e.date === getUSATodayDateStr());
     const score = todayEntry ? todayEntry.score : 7;
     if (score >= 8) acc.happy++;
     else if (score >= 5) acc.neutral++;
@@ -430,7 +455,7 @@ export default function AdminDashboard() {
               {activeModal === "wellness" && (
                 <View style={{ gap: 12 }}>
                   {students.filter(s => s.risk !== "Stable" && s.risk !== undefined).map(s => {
-                    const todayEntry = s.timeline?.find((e: any) => e.day === "Today" || e.date === new Date().toISOString().split('T')[0]);
+                    const todayEntry = s.timeline?.find((e: any) => e.day === "Today" || e.date === getUSATodayDateStr());
                     return (
                       <View key={s.rollNumber} style={[styles.modalListCard, { flexDirection: 'column', alignItems: 'stretch', borderColor: '#fecaca', borderWidth: 1, padding: 14 }]}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>

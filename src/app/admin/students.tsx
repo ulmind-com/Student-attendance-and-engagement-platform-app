@@ -49,6 +49,19 @@ import { LinearGradient } from 'expo-linear-gradient';
 const { width, height } = Dimensions.get('window');
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://kids-attendance-production.up.railway.app';
 
+function getUSATodayDateStr() {
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(new Date());
+  } catch (e) {
+    return new Date().toISOString().split('T')[0];
+  }
+}
+
 export default function StudentsScreen() {
   const [students, setStudents] = useState<any[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
@@ -246,7 +259,7 @@ export default function StudentsScreen() {
     if (activeTab === "active") list = activeStudents;
     else if (activeTab === "inactive") list = inactiveStudents;
     else if (activeTab === "present") {
-      list = students.filter(s => s.timeline?.some((e: any) => e.day === "Today" || e.date === new Date().toISOString().split('T')[0]));
+      list = students.filter(s => s.timeline?.some((e: any) => e.day === "Today" || e.date === getUSATodayDateStr()));
     }
     
     if (searchTerm) {
@@ -302,7 +315,7 @@ export default function StudentsScreen() {
             { id: "all", label: "ALL ENROLLED", value: students.length, icon: Users, color: "#3b82f6", bg: "#eff6ff" },
             { id: "active", label: "ACTIVE", value: activeStudents.length, icon: UserCheck, color: "#16a34a", bg: "#f0fdf4" },
             { id: "inactive", label: "INACTIVE", value: inactiveStudents.length, icon: UserX, color: "#dc2626", bg: "#fef2f2" },
-            { id: "present", label: "PRESENT TODAY", value: students.filter(s => s.timeline?.some((e: any) => e.day === "Today" || e.date === new Date().toISOString().split('T')[0])).length, icon: CheckCircle2, color: "#9333ea", bg: "#faf5ff" },
+            { id: "present", label: "PRESENT TODAY", value: students.filter(s => s.timeline?.some((e: any) => e.day === "Today" || e.date === getUSATodayDateStr())).length, icon: CheckCircle2, color: "#9333ea", bg: "#faf5ff" },
           ].map((tab) => (
             <TouchableOpacity 
               key={tab.id} 
@@ -349,7 +362,7 @@ export default function StudentsScreen() {
         ) : (
           <View style={{ gap: 14 }}>
             {filteredStudents.map(student => {
-              const checkedInToday = student.timeline?.find((e: any) => e.day === "Today" || e.date === new Date().toISOString().split('T')[0]);
+              const checkedInToday = student.timeline?.find((e: any) => e.day === "Today" || e.date === getUSATodayDateStr());
               return (
                 <TouchableOpacity 
                   key={student.rollNumber} 

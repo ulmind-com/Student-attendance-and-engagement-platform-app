@@ -21,7 +21,7 @@ export default function AdminLayout() {
   useEffect(() => {
     const updateClock = () => {
       const now = new Date();
-      const timeStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true });
+      const timeStr = now.toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true });
       setCurrentTime(timeStr);
     };
     updateClock();

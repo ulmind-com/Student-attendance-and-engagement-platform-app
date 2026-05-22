@@ -2,9 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
+  Pressable,
   ScrollView,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   TextInput,
@@ -13,12 +12,32 @@ import {
   Dimensions,
   StyleSheet
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MotiView, AnimatePresence } from 'moti';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Circle, Line, Text as SvgText, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { ArrowLeft, ArrowRight, Heart, Sparkles, Smile, MessageCircle, ClipboardList, CheckCircle } from 'lucide-react-native';
+
+// Custom Touchable using Pressable to avoid NativeWind v4 link-injection bug
+const Touchable = ({ children, style, onPress, className, disabled, ...props }: any) => {
+  return (
+    <Pressable
+      onPress={onPress}
+      className={className}
+      disabled={disabled}
+      style={({ pressed }) => [
+        style,
+        pressed && { opacity: 0.6 },
+        disabled && { opacity: 0.3 }
+      ]}
+      {...props}
+    >
+      {children}
+    </Pressable>
+  );
+};
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -56,6 +75,32 @@ export default function WellnessScreen() {
 
   // Wellness Form States
   const [moodScore, setMoodScore] = useState(6); // Default to 'Good'
+
+  const handleDialTouch = (event: any) => {
+    const { locationX, locationY } = event.nativeEvent;
+    // Calculate angle from center (120, 120)
+    const dx = locationX - 120;
+    const dy = locationY - 120;
+    
+    // Avoid calculating if touch is too close to center
+    if (Math.sqrt(dx * dx + dy * dy) < 20) return;
+    
+    let angle = Math.atan2(dy, dx); // ranges from -PI to PI
+    
+    // Convert angle to index 0-9 where top is index 0
+    let shiftedAngle = angle + Math.PI / 2;
+    if (shiftedAngle < 0) {
+      shiftedAngle += 2 * Math.PI;
+    }
+    
+    const segment = (2 * Math.PI) / 10;
+    let index = Math.round(shiftedAngle / segment);
+    if (index >= 10) index = 0;
+    
+    const score = index + 1;
+    setMoodScore(score);
+  };
+
   const [selectedEmotions, setSelectedEmotions] = useState<string[]>([]);
   const [questions, setQuestions] = useState<any[]>([]);
   const [questionAnswers, setQuestionAnswers] = useState<Record<string, boolean>>({});
@@ -71,7 +116,9 @@ export default function WellnessScreen() {
       const roll = await AsyncStorage.getItem('studentRoll');
       if (!roll) {
         Alert.alert('Not Logged In', 'Please login to record your attendance.');
-        router.replace('/' as any);
+        setTimeout(() => {
+          router.replace('/' as any);
+        }, 100);
         return;
       }
       setStudentRoll(roll);
@@ -233,9 +280,9 @@ export default function WellnessScreen() {
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1">
           {/* Header */}
           <View className="px-5 py-4 flex-row items-center justify-between border-b border-white/40">
-            <TouchableOpacity onPress={prevStep} disabled={currentStep === 0} className={`p-2 rounded-xl bg-white/60 ${currentStep === 0 ? 'opacity-30' : ''}`}>
+            <Touchable onPress={prevStep} disabled={currentStep === 0} className={`p-2 rounded-xl bg-white/60 ${currentStep === 0 ? 'opacity-30' : ''}`}>
               <ArrowLeft color="#6d28d9" size={20} />
-            </TouchableOpacity>
+            </Touchable>
             <View className="items-center">
               <Text className="text-[10px] font-black text-purple-600 uppercase tracking-widest">Daily Wellness Check-In</Text>
               <Text className="text-sm font-black text-slate-800">Hi, {studentName} ✨</Text>
@@ -271,7 +318,6 @@ export default function WellnessScreen() {
 
           {/* Step Contents */}
           <ScrollView contentContainerStyle={{ flexGrow: 1, paddingBottom: 32 }} className="flex-1 px-5">
-            <AnimatePresence exitBeforeEnter>
               {currentStep === 0 && (
                 <MotiView
                   key="step0"
@@ -301,7 +347,7 @@ export default function WellnessScreen() {
                       }}
                     />
 
-                    <View style={{ width: 240, height: 240 }} className="bg-white/90 border border-white rounded-full shadow-2xl items-center justify-center p-2">
+                    <View style={{ width: 240, height: 240, position: 'relative' }} className="bg-white/90 border border-white rounded-full shadow-2xl items-center justify-center p-2">
                       <Svg viewBox="0 0 200 200" width="100%" height="100%">
                         <Defs>
                           <RadialGradient id="clockBg" cx="50%" cy="50%" rx="50%" ry="50%">
@@ -356,7 +402,7 @@ export default function WellnessScreen() {
                       </Svg>
 
                       {/* Overlaid Central Mood Display */}
-                      <View className="absolute items-center justify-center">
+                      <View className="absolute items-center justify-center pointer-events-none">
                         <MotiView
                           key={selectedMood.emoji}
                           from={{ scale: 0.5, rotate: '-20deg' }}
@@ -366,6 +412,21 @@ export default function WellnessScreen() {
                           <Text style={{ fontSize: 44 }}>{selectedMood.emoji}</Text>
                         </MotiView>
                       </View>
+
+                      {/* Transparent Gesture overlay for drag/tap dial interaction */}
+                      <View
+                        style={{
+                          position: 'absolute',
+                          width: 240,
+                          height: 240,
+                          borderRadius: 120,
+                          backgroundColor: 'transparent',
+                        }}
+                        onStartShouldSetResponder={() => true}
+                        onMoveShouldSetResponder={() => true}
+                        onResponderGrant={handleDialTouch}
+                        onResponderMove={handleDialTouch}
+                      />
                     </View>
                   </View>
 
@@ -384,19 +445,33 @@ export default function WellnessScreen() {
                   {/* Tappable Slider Buttons */}
                   <View className="flex-row flex-wrap justify-center gap-2.5 mt-8 px-2">
                     {MOOD_LEVELS.map((item) => (
-                      <TouchableOpacity
+                      <Touchable
                         key={item.score}
                         onPress={() => setMoodScore(item.score)}
-                        className={`w-11 h-11 rounded-2xl items-center justify-center border-2 ${
+                        style={[
+                          {
+                            width: 44,
+                            height: 44,
+                            borderRadius: 16,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderWidth: 2,
+                          },
                           moodScore === item.score
-                            ? 'bg-purple-600 border-purple-600 shadow-md shadow-purple-200'
-                            : 'bg-white/80 border-slate-100'
-                        }`}
+                            ? { backgroundColor: '#9333ea', borderColor: '#9333ea' }
+                            : { backgroundColor: 'rgba(255,255,255,0.8)', borderColor: '#f1f5f9' }
+                        ]}
                       >
-                        <Text className={`text-base font-black ${moodScore === item.score ? 'text-white' : 'text-slate-700'}`}>
+                        <Text
+                          style={{
+                            fontSize: 16,
+                            fontWeight: '900',
+                            color: moodScore === item.score ? '#ffffff' : '#334155'
+                          }}
+                        >
                           {item.score}
                         </Text>
-                      </TouchableOpacity>
+                      </Touchable>
                     ))}
                   </View>
                 </MotiView>
@@ -497,7 +572,7 @@ export default function WellnessScreen() {
                     {EMOTIONS.map((emotion) => {
                       const isSelected = selectedEmotions.includes(emotion.id);
                       return (
-                        <TouchableOpacity
+                        <Touchable
                           key={emotion.id}
                           onPress={() => handleEmotionToggle(emotion.id)}
                           style={{
@@ -517,7 +592,7 @@ export default function WellnessScreen() {
                           <Text className={`font-black text-sm ${isSelected ? 'text-white' : 'text-slate-700'}`}>
                             {emotion.label}
                           </Text>
-                        </TouchableOpacity>
+                        </Touchable>
                       );
                     })}
                   </View>
@@ -545,7 +620,7 @@ export default function WellnessScreen() {
                         <View key={q.id} className="bg-white/80 border border-white p-5 rounded-3xl shadow-sm my-2">
                           <Text className="font-bold text-sm text-slate-800 mb-4 leading-relaxed">{q.text}</Text>
                           <View className="flex-row gap-3">
-                            <TouchableOpacity
+                            <Touchable
                               onPress={() => handleQuestionAnswer(q.id, true)}
                               className={`flex-1 py-3 rounded-2xl items-center border-2 ${
                                 ans === true
@@ -554,8 +629,8 @@ export default function WellnessScreen() {
                               }`}
                             >
                               <Text className={`font-black text-sm ${ans === true ? 'text-white' : 'text-slate-600'}`}>Yes 👍</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
+                            </Touchable>
+                            <Touchable
                               onPress={() => handleQuestionAnswer(q.id, false)}
                               className={`flex-1 py-3 rounded-2xl items-center border-2 ${
                                 ans === false
@@ -564,7 +639,7 @@ export default function WellnessScreen() {
                               }`}
                             >
                               <Text className={`font-black text-sm ${ans === false ? 'text-white' : 'text-slate-600'}`}>No 👎</Text>
-                            </TouchableOpacity>
+                            </Touchable>
                           </View>
                         </View>
                       );
@@ -675,7 +750,7 @@ export default function WellnessScreen() {
                     )}
 
                     {/* Big Submit Button */}
-                    <TouchableOpacity onPress={handleSubmit} disabled={isSubmitting} activeOpacity={0.8} className="mt-4">
+                    <Touchable onPress={handleSubmit} disabled={isSubmitting} activeOpacity={0.8} className="mt-4">
                       <LinearGradient
                         colors={['#8b5cf6', '#ec4899']}
                         start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
@@ -690,26 +765,25 @@ export default function WellnessScreen() {
                           </>
                         )}
                       </LinearGradient>
-                    </TouchableOpacity>
+                    </Touchable>
                   </View>
                 </MotiView>
               )}
-            </AnimatePresence>
           </ScrollView>
 
           {/* Footer Controls */}
           {currentStep < 4 && (
             <View className="px-5 py-4 border-t border-white/40 flex-row gap-4 bg-white/30 backdrop-blur-lg">
               {currentStep > 0 ? (
-                <TouchableOpacity onPress={prevStep} className="flex-1 py-4 bg-white/70 border border-slate-100 rounded-2xl items-center justify-center flex-row shadow-sm">
+                <Touchable onPress={prevStep} className="flex-1 py-4 bg-white/70 border border-slate-100 rounded-2xl items-center justify-center flex-row shadow-sm">
                   <ArrowLeft color="#64748b" size={16} className="mr-2" />
                   <Text className="text-slate-600 font-black text-sm">Previous</Text>
-                </TouchableOpacity>
+                </Touchable>
               ) : null}
-              <TouchableOpacity onPress={nextStep} className="flex-1 py-4 bg-purple-600 rounded-2xl items-center justify-center flex-row shadow-lg">
+              <Touchable onPress={nextStep} className="flex-1 py-4 bg-purple-600 rounded-2xl items-center justify-center flex-row shadow-lg">
                 <Text className="text-white font-black text-sm mr-2">Next Step</Text>
                 <ArrowRight color="white" size={16} />
-              </TouchableOpacity>
+              </Touchable>
             </View>
           )}
         </KeyboardAvoidingView>

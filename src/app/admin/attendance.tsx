@@ -6,24 +6,37 @@ import { MotiView } from 'moti';
 const { width } = Dimensions.get('window');
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://kids-attendance-production.up.railway.app';
 
+function getUSATodayDateStr() {
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(new Date());
+  } catch (e) {
+    return new Date().toISOString().split('T')[0];
+  }
+}
+
 export default function AttendanceScreen() {
   const [students, setStudents] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedDateStr, setSelectedDateStr] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedDateStr, setSelectedDateStr] = useState<string>(new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }));
 
-  // Derive last 30 calendar days dynamically
+  // Derive last 30 calendar days dynamically in US Eastern timezone
   const heatmapDays = useMemo(() => {
     const days = [];
     const now = new Date();
     for (let i = 29; i >= 0; i--) {
       const d = new Date(now);
       d.setDate(now.getDate() - i);
-      const iso = d.toISOString().split('T')[0];
+      const iso = d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
       days.push({
         isoDate: iso,
-        label: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-        weekday: d.toLocaleDateString("en-US", { weekday: "short" })
+        label: d.toLocaleDateString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric" }),
+        weekday: d.toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "short" })
       });
     }
     return days;
@@ -57,7 +70,7 @@ export default function AttendanceScreen() {
     let hasAlert = false;
 
     students.forEach(s => {
-      const entry = s.timeline?.find((e: any) => e.date === isoDate || (e.day === "Today" && isoDate === new Date().toISOString().split('T')[0]));
+      const entry = s.timeline?.find((e: any) => e.date === isoDate || (e.day === "Today" && isoDate === getUSATodayDateStr()));
       if (entry) {
         hasCheckin = true;
         if (entry.score <= 4 || entry.alert || s.risk === "High Risk" || s.risk === "Urgent Assistance") {
@@ -74,7 +87,7 @@ export default function AttendanceScreen() {
   // Roster breakdown for the SELECTED date
   const selectedDateRoster = useMemo(() => {
     return students.map(s => {
-      const entry = s.timeline?.find((e: any) => e.date === selectedDateStr || (e.day === "Today" && selectedDateStr === new Date().toISOString().split('T')[0]));
+      const entry = s.timeline?.find((e: any) => e.date === selectedDateStr || (e.day === "Today" && selectedDateStr === getUSATodayDateStr()));
       return {
         ...s,
         checkedIn: !!entry,
@@ -94,11 +107,10 @@ export default function AttendanceScreen() {
   }, [selectedDateRoster, searchQuery]);
 
   const formattedSelectedDate = useMemo(() => {
-    const d = new Date(selectedDateStr);
-    // Adjust timezone offsets
-    const userTimezoneOffset = d.getTimezoneOffset() * 60000;
-    const adjustedDate = new Date(d.getTime() + userTimezoneOffset);
-    return adjustedDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }).toUpperCase();
+    const parts = selectedDateStr.split('-');
+    if (parts.length < 3) return "";
+    const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 12, 0, 0);
+    return d.toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric" }).toUpperCase();
   }, [selectedDateStr]);
 
   return (
