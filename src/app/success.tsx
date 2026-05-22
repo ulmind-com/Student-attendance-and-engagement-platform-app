@@ -1,9 +1,25 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, Pressable, Dimensions } from 'react-native';
 import { router } from 'expo-router';
 import { MotiView } from 'moti';
 import { LinearGradient } from 'expo-linear-gradient';
 import LottieView from 'lottie-react-native';
+
+const Touchable = ({ children, style, onPress, className, ...props }: any) => {
+  return (
+    <Pressable
+      onPress={onPress}
+      className={className}
+      style={({ pressed }) => [
+        style,
+        pressed && { opacity: 0.6 }
+      ]}
+      {...props}
+    >
+      {children}
+    </Pressable>
+  );
+};
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -42,7 +58,7 @@ export default function SuccessScreen() {
             Amazing job! Your attendance and emotional wellness check-in have been successfully recorded for today.
           </Text>
           
-          <TouchableOpacity 
+          <Touchable 
             onPress={() => router.replace('/')} 
             activeOpacity={0.8}
             className="w-full"
@@ -54,7 +70,7 @@ export default function SuccessScreen() {
             >
               <Text className="text-white font-black text-sm">Return Home 🏠</Text>
             </LinearGradient>
-          </TouchableOpacity>
+          </Touchable>
         </MotiView>
       </MotiView>
     </View>
