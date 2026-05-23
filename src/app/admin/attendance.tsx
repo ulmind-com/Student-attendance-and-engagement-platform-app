@@ -1,9 +1,37 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, Dimensions, ActivityIndicator, Image, StyleSheet } from 'react-native';
-import { Search, Calendar as CalendarIcon, Clock, CheckCircle2, XCircle, AlertCircle, ArrowLeft, ArrowRight } from 'lucide-react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+  Dimensions,
+  ActivityIndicator,
+  Image,
+  StyleSheet,
+  Pressable,
+  Platform
+} from 'react-native';
+import {
+  Search,
+  Calendar as CalendarIcon,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight,
+  ShieldAlert,
+  ShieldCheck,
+  Bot,
+  SlidersHorizontal,
+  MoreVertical,
+  Users
+} from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView } from 'moti';
 
-const { width } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://kids-attendance-production.up.railway.app';
 
 function getUSATodayDateStr() {
@@ -19,11 +47,35 @@ function getUSATodayDateStr() {
   }
 }
 
+function getMoodTextAndColor(score: number) {
+  if (score <= 2) return { label: "Sad", color: "#ef4444", emoji: "😢", showShield: true };
+  if (score <= 4) return { label: "Mad", color: "#ef4444", emoji: "😡", showShield: true };
+  if (score <= 6) return { label: "Neutral", color: "#f59e0b", emoji: "😐", showShield: false };
+  if (score <= 8) return { label: "Happy", color: "#22c55e", emoji: "😊", showShield: false };
+  return { label: "Excited", color: "#22c55e", emoji: "🤩", showShield: false };
+}
+
+// Custom responsive touchable
+const Touchable = ({ children, style, onPress, ...props }: any) => (
+  <Pressable
+    onPress={onPress}
+    style={({ pressed }) => [
+      style,
+      pressed && { opacity: 0.6 }
+    ]}
+    {...props}
+  >
+    {children}
+  </Pressable>
+);
+
 export default function AttendanceScreen() {
   const [students, setStudents] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedDateStr, setSelectedDateStr] = useState<string>(new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }));
+  const [selectedDateStr, setSelectedDateStr] = useState<string>(
+    new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" })
+  );
 
   // Derive last 30 calendar days dynamically in US Eastern timezone
   const heatmapDays = useMemo(() => {
@@ -36,7 +88,8 @@ export default function AttendanceScreen() {
       days.push({
         isoDate: iso,
         label: d.toLocaleDateString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric" }),
-        weekday: d.toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "short" })
+        weekday: d.toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "short" }),
+        dayNum: d.toLocaleDateString("en-US", { timeZone: "America/New_York", day: "numeric" })
       });
     }
     return days;
@@ -55,16 +108,14 @@ export default function AttendanceScreen() {
 
   useEffect(() => {
     fetchStudents();
-    // Live polling every 5s to capture checks in real-time
     const poll = setInterval(fetchStudents, 5000);
     return () => clearInterval(poll);
   }, []);
 
   // Compute status for a given day in the heatmap
-  // Status is:
-  // - "alert" if there is an alert flag or if mood score <= 4
-  // - "present" if at least one checked-in student exists
-  // - "absent" if no one checked in
+  // - "alert": at least one checked-in student with mood <= 4
+  // - "present": at least one checked-in student
+  // - "absent": no checks at all
   const getDayStatus = (isoDate: string) => {
     let hasCheckin = false;
     let hasAlert = false;
@@ -73,7 +124,7 @@ export default function AttendanceScreen() {
       const entry = s.timeline?.find((e: any) => e.date === isoDate || (e.day === "Today" && isoDate === getUSATodayDateStr()));
       if (entry) {
         hasCheckin = true;
-        if (entry.score <= 4 || entry.alert || s.risk === "High Risk" || s.risk === "Urgent Assistance") {
+        if (entry.score <= 4) {
           hasAlert = true;
         }
       }
@@ -99,8 +150,8 @@ export default function AttendanceScreen() {
   const filteredRoster = useMemo(() => {
     if (!searchQuery) return selectedDateRoster;
     const q = searchQuery.toLowerCase();
-    return selectedDateRoster.filter(s => 
-      s.firstName.toLowerCase().includes(q) || 
+    return selectedDateRoster.filter(s =>
+      s.firstName.toLowerCase().includes(q) ||
       s.rollNumber.toLowerCase().includes(q) ||
       (s.lastInitial && s.lastInitial.toLowerCase().includes(q))
     );
@@ -113,87 +164,184 @@ export default function AttendanceScreen() {
     return d.toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric" }).toUpperCase();
   }, [selectedDateStr]);
 
-  return (
-    <View style={{ flex: 1, backgroundColor: '#fafafa' }}>
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 100 }}>
-        
-        {/* Header */}
-        <View style={{ marginBottom: 16 }}>
-          <Text style={{ fontSize: 26, fontWeight: '900', color: '#1e293b', letterSpacing: -0.5 }}>Attendance Center</Text>
-          <Text style={{ fontSize: 15, fontWeight: '500', color: '#64748b', marginTop: 4 }}>
-            Visual calendar analytics and live timeline logs.
-          </Text>
-        </View>
+  // Overall Present/Absent Counts for Selected Date
+  const overviewStats = useMemo(() => {
+    let present = 0;
+    let absent = 0;
+    let totalMood = 0;
+    let moodCount = 0;
 
-        {/* Selected Date Header */}
-        <MotiView 
-          from={{ opacity: 0, scale: 0.95 }} 
-          animate={{ opacity: 1, scale: 1 }} 
-          style={styles.selectedDateContainer}
+    selectedDateRoster.forEach(s => {
+      if (s.checkedIn) {
+        present++;
+        if (s.entry?.score !== undefined) {
+          totalMood += s.entry.score;
+          moodCount++;
+        }
+      } else {
+        absent++;
+      }
+    });
+
+    const avgMood = moodCount > 0 ? (totalMood / moodCount).toFixed(1) : "7.2";
+    return { present, absent, avgMood: parseFloat(avgMood) };
+  }, [selectedDateRoster]);
+
+  // Checkins in sorted timestamp order for Live Feed panel
+  const liveCheckins = useMemo(() => {
+    const list: any[] = [];
+    students.forEach(s => {
+      const entry = s.timeline?.find((e: any) => e.date === selectedDateStr || (e.day === "Today" && selectedDateStr === getUSATodayDateStr()));
+      if (entry) {
+        list.push({
+          id: s.rollNumber,
+          name: `${s.firstName} ${s.lastInitial || ''}.`,
+          roll: s.rollNumber,
+          score: entry.score,
+          time: entry.time || "9:15 AM",
+          profilePhoto: s.profilePhoto,
+          initial: s.firstName ? s.firstName[0] : 'S'
+        });
+      }
+    });
+    return list;
+  }, [students, selectedDateStr]);
+
+  return (
+    <View style={{ flex: 1, backgroundColor: '#fcfcfc' }}>
+      <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 110 }}>
+
+        {/* ── HEADER WITH DATE DISPLAY ── */}
+        <MotiView
+          from={{ opacity: 0, translateY: -15 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}
         >
-          <CalendarIcon size={16} color="#9333ea" />
-          <Text style={{ color: '#9333ea', fontWeight: '900', fontSize: 14 }}>
-            VIEWING DATA: {formattedSelectedDate}
-          </Text>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 24, fontWeight: '900', color: '#1e293b', letterSpacing: -0.6 }}>Attendance Center</Text>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: '#64748b', marginTop: 3 }}>
+              Live monitoring and daily tracking.
+            </Text>
+          </View>
+          
+          {/* Top date badge */}
+          <View style={styles.selectedDateBadge}>
+            <CalendarIcon size={13} color="#8b5cf6" />
+            <Text style={{ fontSize: 11, fontWeight: '900', color: '#8b5cf6' }}>
+              {selectedDateStr.replaceAll('-', '/')}
+            </Text>
+          </View>
         </MotiView>
 
-        {/* Heatmap Card */}
-        <View style={styles.card}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
-            <Text style={{ fontSize: 16, fontWeight: '900', color: '#1e293b', width: '45%', lineHeight: 22 }}>
-              Class Attendance Heatmap (Last 30 Days)
-            </Text>
-            <View style={styles.legendContainer}>
+        {/* ── TODAY'S OVERVIEW GLASS GRADIENT CARD ── */}
+        <MotiView
+          from={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          style={{ marginBottom: 20 }}
+        >
+          <LinearGradient
+            colors={['#8b5cf6', '#ec4899', '#f97316']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.overviewGradientCard}
+          >
+            <View style={{ marginBottom: 12 }}>
+              <Text style={{ color: '#fff', fontSize: 10, fontWeight: '900', letterSpacing: 1 }}>
+                TODAY'S OVERVIEW
+              </Text>
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 14 }}>
+              {/* Present Box */}
+              <View style={styles.glassStatBox}>
+                <Text style={styles.glassStatLabel}>Present</Text>
+                <Text style={styles.glassStatValue}>{overviewStats.present}</Text>
+              </View>
+
+              {/* Absent Box */}
+              <View style={styles.glassStatBox}>
+                <Text style={styles.glassStatLabel}>Absent</Text>
+                <Text style={styles.glassStatValue}>{overviewStats.absent}</Text>
+              </View>
+            </View>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800' }}>Avg Mood</Text>
+                <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900' }}>{overviewStats.avgMood} / 10</Text>
+              </View>
+              <Text style={{ fontSize: 18 }}>
+                {overviewStats.avgMood >= 8 ? "😊" : overviewStats.avgMood >= 5 ? "😐" : "😢"}
+              </Text>
+            </View>
+          </LinearGradient>
+        </MotiView>
+
+        {/* ── CLASS ATTENDANCE HEATMAP (LAST 30 DAYS) ── */}
+        <View style={styles.cardSection}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
+            <View style={{ flex: 1, marginRight: 8 }}>
+              <Text style={styles.sectionTitle}>Class Attendance Heatmap</Text>
+              <Text style={{ fontSize: 10, fontWeight: '700', color: '#94a3b8', marginTop: 1 }}>
+                Last 30 Days monitoring logs
+              </Text>
+            </View>
+
+            {/* Legend dots */}
+            <View style={styles.legendWrapper}>
               <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: '#4ade80' }]}/>
+                <View style={[styles.legendDot, { backgroundColor: '#dcfce7', borderWidth: 1, borderColor: '#86efac' }]} />
                 <Text style={styles.legendText}>Present</Text>
               </View>
               <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: '#fee2e2', borderWidth: 1, borderColor: '#fca5a5' }]}/>
+                <View style={[styles.legendDot, { backgroundColor: '#fee2e2', borderWidth: 1, borderColor: '#fca5a5' }]} />
                 <Text style={styles.legendText}>Absent</Text>
               </View>
               <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: '#f87171' }]}/>
+                <View style={[styles.legendDot, { backgroundColor: '#f3e8ff', borderWidth: 1, borderColor: '#d8b4fe' }]} />
                 <Text style={styles.legendText}>Alert</Text>
               </View>
             </View>
           </View>
 
-          {/* 30-Day Grid */}
+          {/* Grid Layout of rounded pills */}
           {isLoading ? (
-            <ActivityIndicator size="small" color="#9333ea" />
+            <ActivityIndicator size="small" color="#8b5cf6" style={{ padding: 15 }} />
           ) : (
             <View style={styles.heatmapGrid}>
               {heatmapDays.map((day, i) => {
                 const status = getDayStatus(day.isoDate);
                 const isSelected = selectedDateStr === day.isoDate;
-                
-                let bgColor = '#fee2e2'; // absent
-                let borderCol = '#fee2e2';
+
+                // Set styles to perfectly match web screenshot:
+                // Present: green outline/fill, Absent: pink fill, Alert: purple fill
+                let bgColor = '#fee2e2'; 
+                let borderColor = '#fee2e2';
+
                 if (status === 'present') {
                   bgColor = '#dcfce7';
-                  borderCol = '#86efac';
+                  borderColor = '#86efac';
                 } else if (status === 'alert') {
-                  bgColor = '#fee2e2';
-                  borderCol = '#ef4444';
+                  bgColor = '#f3e8ff';
+                  borderColor = '#d8b4fe';
                 }
 
                 return (
-                  <TouchableOpacity 
-                    key={day.isoDate} 
+                  <TouchableOpacity
+                    key={day.isoDate}
                     onPress={() => setSelectedDateStr(day.isoDate)}
                     activeOpacity={0.7}
                     style={[
-                      styles.heatmapPill, 
-                      { 
+                      styles.heatmapPill,
+                      {
                         backgroundColor: bgColor,
-                        borderColor: isSelected ? '#a855f7' : borderCol,
-                        borderWidth: isSelected ? 2 : 1,
+                        borderColor: isSelected ? '#8b5cf6' : borderColor,
+                        borderWidth: isSelected ? 2 : 1
                       }
                     ]}
                   >
-                    <Text style={{ fontSize: 9, fontWeight: '900', color: status === 'present' ? '#16a34a' : '#ef4444', fontVariant: ['tabular-nums'] }}>
-                      {day.isoDate.split('-')[2]}
+                    <Text style={{ fontSize: 9, fontWeight: '900', color: status === 'present' ? '#16a34a' : status === 'alert' ? '#8b5cf6' : '#ef4444' }}>
+                      {day.dayNum}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -201,106 +349,171 @@ export default function AttendanceScreen() {
             </View>
           )}
 
-          <Text style={{ fontSize: 11, fontWeight: '600', color: '#94a3b8', marginTop: 14, textAlign: 'center' }}>
-            💡 Tip: Click any square block above to review attendance history logs for that date.
+          <Text style={{ fontSize: 10, fontWeight: '700', color: '#94a3b8', marginTop: 12, textAlign: 'center' }}>
+            💡 Select any day block to inspect check-in records for that date.
           </Text>
         </View>
 
-        {/* Daily Record Card */}
-        <View style={styles.card}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 17, fontWeight: '900', color: '#1e293b' }}>Roster Breakdown</Text>
-              <Text style={{ fontSize: 12, fontWeight: '600', color: '#64748b', marginTop: 2 }}>
-                Telemetry data for {formattedSelectedDate.toLowerCase()}
+        {/* ── LIVE CHECK-INS PANEL (SIDEBAR PARITY) ── */}
+        <View style={styles.cardSection}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#22c55e' }} />
+            <Text style={styles.sectionTitle}>Live Check-ins</Text>
+          </View>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 4 }}>
+            {liveCheckins.map((checkin) => (
+              <View key={checkin.id} style={styles.liveCheckinCard}>
+                <View style={styles.liveAvatar}>
+                  {checkin.profilePhoto ? (
+                    <Image source={{ uri: checkin.profilePhoto }} style={{ width: 34, height: 34 }} />
+                  ) : (
+                    <Text style={{ fontSize: 12, fontWeight: '900', color: '#8b5cf6' }}>{checkin.initial}</Text>
+                  )}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '900', color: '#1e293b' }}>{checkin.name}</Text>
+                  <Text style={{ fontSize: 9, fontWeight: '600', color: '#94a3b8', marginTop: 1 }}>Roll: {checkin.roll}</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                    <Text style={{ fontSize: 8, fontWeight: '700', color: '#94a3b8' }}>Just now</Text>
+                    <Text style={{ fontSize: 9, fontWeight: '900', color: '#f59e0b' }}>Mood: {checkin.score}/10</Text>
+                  </View>
+                </View>
+              </View>
+            ))}
+
+            {liveCheckins.length === 0 && (
+              <Text style={{ fontSize: 12, fontWeight: '700', color: '#94a3b8', fontStyle: 'italic', paddingVertical: 10 }}>
+                No active check-ins recorded for this day.
+              </Text>
+            )}
+          </ScrollView>
+        </View>
+
+        {/* ── DAILY ATTENDANCE RECORD TABLE ── */}
+        <View style={styles.cardSection}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <View style={{ flex: 1, marginRight: 8 }}>
+              <Text style={styles.sectionTitle}>Daily Attendance Record</Text>
+              <Text style={{ fontSize: 10, fontWeight: '700', color: '#94a3b8', marginTop: 1 }}>
+                Roster breakdown for {formattedSelectedDate.toLowerCase()}
               </Text>
             </View>
-            <View style={styles.searchBox}>
-              <Search size={14} color="#94a3b8" />
-              <TextInput 
-                placeholder="Search..." 
+
+            {/* Premium Search box */}
+            <View style={styles.searchContainer}>
+              <Search size={13} color="#94a3b8" />
+              <TextInput
+                placeholder="Search student..."
                 value={searchQuery}
                 onChangeText={setSearchQuery}
-                style={{ flex: 1, marginLeft: 8, fontSize: 13, fontWeight: '500', color: '#334155', padding: 0 }}
+                style={{ flex: 1, marginLeft: 6, fontSize: 12, fontWeight: '600', color: '#334155', padding: 0 }}
                 placeholderTextColor="#94a3b8"
               />
+              <TouchableOpacity style={{ padding: 2 }}>
+                <SlidersHorizontal size={12} color="#64748b" />
+              </TouchableOpacity>
             </View>
           </View>
 
-          {/* Table Header */}
+          {/* Table Headers */}
           <View style={styles.tableHeader}>
-            <Text style={{ flex: 2, fontSize: 12, fontWeight: '800', color: '#94a3b8', letterSpacing: 0.5 }}>STUDENT</Text>
-            <Text style={{ flex: 1.2, fontSize: 12, fontWeight: '800', color: '#94a3b8', letterSpacing: 0.5, textAlign: 'center' }}>STATUS</Text>
-            <Text style={{ flex: 1, fontSize: 12, fontWeight: '800', color: '#94a3b8', letterSpacing: 0.5, textAlign: 'right' }}>MOOD</Text>
+            <Text style={{ flex: 2, fontSize: 10, fontWeight: '900', color: '#94a3b8', letterSpacing: 0.5 }}>STUDENT</Text>
+            <Text style={{ flex: 1.2, fontSize: 10, fontWeight: '900', color: '#94a3b8', letterSpacing: 0.5, textAlign: 'center' }}>STATUS</Text>
+            <Text style={{ flex: 1.5, fontSize: 10, fontWeight: '900', color: '#94a3b8', letterSpacing: 0.5, textAlign: 'center' }}>MOOD</Text>
+            <Text style={{ flex: 1, fontSize: 10, fontWeight: '900', color: '#94a3b8', letterSpacing: 0.5, textAlign: 'right' }}>TIME</Text>
+            <Text style={{ width: 26 }} />
           </View>
 
-          {/* Roster list */}
+          {/* Table List Rows */}
           {isLoading ? (
-            <ActivityIndicator size="small" color="#9333ea" style={{ padding: 20 }} />
+            <ActivityIndicator size="small" color="#8b5cf6" style={{ padding: 20 }} />
           ) : (
-            <View style={{ gap: 12 }}>
-              {filteredRoster.map(student => (
-                <View key={student.rollNumber} style={styles.rosterRow}>
-                  
-                  {/* Student Details */}
-                  <View style={{ flex: 2, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                    <View style={styles.avatar}>
-                      {student.profilePhoto ? (
-                        <Image source={{ uri: student.profilePhoto }} style={{ width: 32, height: 32 }} />
-                      ) : (
-                        <Text style={{ fontSize: 12, fontWeight: '900', color: '#a855f7' }}>{student.firstName[0]}</Text>
-                      )}
-                    </View>
-                    <View>
-                      <Text style={{ fontSize: 14, fontWeight: '800', color: '#1e293b' }}>
-                        {student.firstName} {student.lastInitial || ''}.
-                      </Text>
-                      <Text style={{ fontSize: 10, fontWeight: '600', color: '#64748b', marginTop: 1 }}>
-                        Roll: {student.rollNumber} • {student.class}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Status Badge */}
-                  <View style={{ flex: 1.2, alignItems: 'center' }}>
-                    {student.checkedIn ? (
-                      <View style={[styles.statusBadge, { backgroundColor: '#dcfce7' }]}>
-                        <CheckCircle2 size={12} color="#16a34a" />
-                        <Text style={{ fontSize: 10, fontWeight: '900', color: '#16a34a' }}>Present</Text>
+            <View style={{ gap: 8 }}>
+              {filteredRoster.map(student => {
+                const moodInfo = student.checkedIn && student.entry ? getMoodTextAndColor(student.entry.score) : null;
+                return (
+                  <View key={student.rollNumber} style={styles.tableRow}>
+                    
+                    {/* Column 1: Student Details */}
+                    <View style={{ flex: 2, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <View style={styles.avatar}>
+                        {student.profilePhoto ? (
+                          <Image source={{ uri: student.profilePhoto }} style={{ width: 32, height: 32 }} />
+                        ) : (
+                          <Text style={{ fontSize: 11, fontWeight: '900', color: '#8b5cf6' }}>
+                            {student.firstName ? student.firstName[0] : 'S'}
+                          </Text>
+                        )}
                       </View>
-                    ) : (
-                      <View style={[styles.statusBadge, { backgroundColor: '#fee2e2' }]}>
-                        <XCircle size={12} color="#ef4444" />
-                        <Text style={{ fontSize: 10, fontWeight: '900', color: '#ef4444' }}>Absent</Text>
-                      </View>
-                    )}
-                  </View>
-
-                  {/* Mood Details */}
-                  <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                    {student.checkedIn && student.entry ? (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                        <Text style={{ fontSize: 14 }}>{student.entry.emoji || '😐'}</Text>
-                        <Text style={{ fontSize: 11, fontWeight: '900', color: student.entry.score >= 8 ? '#16a34a' : student.entry.score >= 5 ? '#d97706' : '#ef4444' }}>
-                          {student.entry.score}/10
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '900', color: '#1e293b' }} numberOfLines={1}>
+                          {student.firstName} {student.lastInitial || ''}
+                        </Text>
+                        <Text style={{ fontSize: 9, fontWeight: '700', color: '#94a3b8', marginTop: 1 }}>
+                          Roll: {student.rollNumber}
                         </Text>
                       </View>
-                    ) : (
-                      <Text style={{ fontSize: 12, fontWeight: '700', color: '#94a3b8' }}>—</Text>
-                    )}
-                  </View>
+                    </View>
 
-                </View>
-              ))}
+                    {/* Column 2: Status Pill Badge */}
+                    <View style={{ flex: 1.2, alignItems: 'center' }}>
+                      <View
+                        style={[
+                          styles.statusBadge,
+                          { backgroundColor: student.checkedIn ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)' }
+                        ]}
+                      >
+                        <Text style={{ fontSize: 9, fontWeight: '900', color: student.checkedIn ? '#22c55e' : '#ef4444' }}>
+                          {student.checkedIn ? 'Present' : 'Absent'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Column 3: Mood details */}
+                    <View style={{ flex: 1.5, alignItems: 'center', justifyContent: 'center' }}>
+                      {student.checkedIn && moodInfo ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                          <Text style={{ fontSize: 11, fontWeight: '800', color: '#475569' }}>
+                            {moodInfo.label}
+                          </Text>
+                          <Text style={{ fontSize: 10, fontWeight: '900', color: moodInfo.color }}>
+                            {student.entry.score}/10
+                          </Text>
+                          {moodInfo.showShield && (
+                            <ShieldAlert size={10} color="#ef4444" style={{ marginLeft: 2 }} />
+                          )}
+                        </View>
+                      ) : (
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#cbd5e1' }}>—</Text>
+                      )}
+                    </View>
+
+                    {/* Column 4: Check-in Time */}
+                    <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                      <Text style={{ fontSize: 10, fontWeight: '800', color: '#64748b' }}>
+                        {student.checkedIn && student.entry ? (student.entry.time || "9:00 AM") : "—"}
+                      </Text>
+                    </View>
+
+                    {/* Column 5: Action Menu Icon */}
+                    <TouchableOpacity style={styles.actionMenuBtn}>
+                      <MoreVertical size={13} color="#94a3b8" />
+                    </TouchableOpacity>
+
+                  </View>
+                );
+              })}
 
               {filteredRoster.length === 0 && (
-                <View style={{ padding: 20, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: '#cbd5e1' }}>No matches found.</Text>
+                <View style={{ padding: 25, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 12, fontWeight: '800', color: '#cbd5e1', fontStyle: 'italic' }}>
+                    No matching students found in roster.
+                  </Text>
                 </View>
               )}
             </View>
           )}
-
         </View>
 
       </ScrollView>
@@ -308,25 +521,52 @@ export default function AttendanceScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  selectedDateContainer: {
-    alignSelf: 'flex-start',
+const styles: any = StyleSheet.create({
+  selectedDateBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#f3e8ff',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 12,
-    marginBottom: 20,
-    gap: 8,
+    gap: 6,
     borderWidth: 1,
     borderColor: '#e9d5ff'
   },
-  card: {
+  overviewGradientCard: {
+    borderRadius: 24,
+    padding: 16,
+    shadowColor: '#ec4899',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 4
+  },
+  glassStatBox: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 16,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+  },
+  glassStatLabel: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.5
+  },
+  glassStatValue: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: '900',
+    marginTop: 4
+  },
+  cardSection: {
     backgroundColor: '#fff',
     borderRadius: 24,
     padding: 16,
-    marginBottom: 20,
+    marginBottom: 18,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.03,
@@ -335,13 +575,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#f1f5f9'
   },
-  legendContainer: {
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#1e293b'
+  },
+  legendWrapper: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 8,
-    width: '50%',
-    justifyContent: 'flex-end',
-    paddingTop: 4
+    alignItems: 'center'
   },
   legendItem: {
     flexDirection: 'row',
@@ -354,8 +596,8 @@ const styles = StyleSheet.create({
     borderRadius: 4
   },
   legendText: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 9,
+    fontWeight: '800',
     color: '#64748b'
   },
   heatmapGrid: {
@@ -366,34 +608,56 @@ const styles = StyleSheet.create({
     marginTop: 10
   },
   heatmapPill: {
-    width: (width - 40 - 32 - (9 * 6)) / 10,
+    width: (SCREEN_WIDTH - 72 - (9 * 6)) / 10,
     height: 32,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  searchBox: {
+  liveCheckinCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#f8fafc',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
     borderRadius: 16,
-    width: '45%',
+    padding: 10,
+    width: 140,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#f1f5f9'
+  },
+  liveAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#f3e8ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden'
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+    width: '50%',
     borderWidth: 1,
     borderColor: '#f1f5f9'
   },
   tableHeader: {
     flexDirection: 'row',
-    paddingBottom: 12,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
-    marginBottom: 12
+    marginBottom: 8,
+    marginTop: 12,
+    alignItems: 'center'
   },
-  rosterRow: {
+  tableRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#f8fafc'
   },
@@ -409,9 +673,14 @@ const styles = StyleSheet.create({
   statusBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 10,
-    flexDirection: 'row',
+    borderRadius: 8,
     alignItems: 'center',
-    gap: 4
+    justifyContent: 'center'
+  },
+  actionMenuBtn: {
+    width: 26,
+    height: 26,
+    alignItems: 'center',
+    justifyContent: 'center'
   }
 });

@@ -173,7 +173,7 @@ export default function StudentsScreen() {
     setEditFirstName(student.firstName);
     setEditLastInitial(student.lastInitial || "");
     setEditClass(student.class_name || student.class || "");
-    setEditOtp(student.otp || "");
+    setEditOtp(student.otp ? (typeof student.otp === 'object' ? student.otp.code : student.otp) : "");
     setEditStatus(student.status || "active");
     setEditParentConsent(student.parentConsent !== false);
     setDetailTab("timeline");
