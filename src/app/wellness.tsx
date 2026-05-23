@@ -10,32 +10,33 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
-  StyleSheet
+  StyleSheet,
+  TouchableOpacity
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MotiView, AnimatePresence } from 'moti';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Path, Circle, Line, Text as SvgText, Defs, RadialGradient, Stop } from 'react-native-svg';
-import { ArrowLeft, ArrowRight, Heart, Sparkles, Smile, MessageCircle, ClipboardList, CheckCircle } from 'lucide-react-native';
+import Svg, { Path, Circle, Line, Text as SvgText, Defs, RadialGradient, Stop, Ellipse, Rect } from 'react-native-svg';
+import { ArrowLeft, ArrowRight, Heart, Sparkles, Smile, MessageCircle, ClipboardList, CheckCircle, Star, ThumbsUp, ThumbsDown } from 'lucide-react-native';
 
-// Custom Touchable using Pressable to avoid NativeWind v4 link-injection bug
+// Custom Touchable using TouchableOpacity to avoid NativeWind v4 / Expo Router link context conflicts
 const Touchable = ({ children, style, onPress, className, disabled, ...props }: any) => {
   return (
-    <Pressable
+    <TouchableOpacity
       onPress={onPress}
       className={className}
       disabled={disabled}
-      style={({ pressed }) => [
+      style={[
         style,
-        pressed && { opacity: 0.6 },
         disabled && { opacity: 0.3 }
       ]}
+      activeOpacity={0.6}
       {...props}
     >
       {children}
-    </Pressable>
+    </TouchableOpacity>
   );
 };
 
@@ -57,12 +58,12 @@ const MOOD_LEVELS = [
 ];
 
 const EMOTIONS = [
-  { id: 'Happy', label: 'Happy 💚', color: '#22c55e', bg: 'rgba(34, 197, 94, 0.15)' },
-  { id: 'Sad', label: 'Sad 💙', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.15)' },
-  { id: 'Mad', label: 'Mad ❤️', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.15)' },
-  { id: 'Scared', label: 'Scared 🖤', color: '#64748b', bg: 'rgba(100, 116, 139, 0.15)' },
-  { id: 'Worried', label: 'Worried 💛', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)' },
-  { id: 'Excited', label: 'Excited 💗', color: '#ec4899', bg: 'rgba(236, 72, 153, 0.15)' },
+  { id: 'Happy', label: 'Happy', emoji: '😊', color: '#10b981', glow: 'rgba(16, 185, 129, 0.3)' },
+  { id: 'Sad', label: 'Sad', emoji: '😢', color: '#3b82f6', glow: 'rgba(59, 130, 246, 0.3)' },
+  { id: 'Mad', label: 'Mad', emoji: '😡', color: '#ef4444', glow: 'rgba(239, 68, 68, 0.3)' },
+  { id: 'Scared', label: 'Scared', emoji: '😨', color: '#6366f1', glow: 'rgba(99, 102, 241, 0.3)' },
+  { id: 'Worried', label: 'Worried', emoji: '😟', color: '#f59e0b', glow: 'rgba(245, 158, 11, 0.3)' },
+  { id: 'Excited', label: 'Excited', emoji: '🤩', color: '#ec4899', glow: 'rgba(236, 72, 153, 0.3)' },
 ];
 
 export default function WellnessScreen() {
@@ -101,7 +102,7 @@ export default function WellnessScreen() {
     setMoodScore(score);
   };
 
-  const [selectedEmotions, setSelectedEmotions] = useState<string[]>([]);
+  const [selectedEmotions, setSelectedEmotions] = useState<string[]>(['Happy']);
   const [questions, setQuestions] = useState<any[]>([]);
   const [questionAnswers, setQuestionAnswers] = useState<Record<string, boolean>>({});
   const [journalText, setJournalText] = useState('');
@@ -134,28 +135,24 @@ export default function WellnessScreen() {
         }
       }
 
-      // 3. Fetch Questions
-      const questionsRes = await fetch(`${API_URL}/questions/list`);
+      // 3. Fetch Questions from correct /wellness/questions endpoint matching website
+      const questionsRes = await fetch(`${API_URL}/wellness/questions?rollNumber=${roll}`);
       if (questionsRes.ok) {
         const allQuestions = await questionsRes.json();
-        // Filter by roll, class, or global
-        const filtered = allQuestions.filter((q: any) => {
-          if (!q.enabled) return false;
-          if (q.targetType === 'student' && q.targetValue === roll) return true;
-          if (q.targetType === 'class' && q.targetValue === studentClass) return true;
-          if (q.targetType === 'global') return true;
-          return false;
-        });
+        const formatted = allQuestions.map((q: any, idx: number) => ({
+          id: q.id || `q_${idx}`,
+          text: q.text,
+          enabled: true
+        }));
 
-        // If no dynamic questions configured, fall back to robust default list
-        if (filtered.length === 0) {
+        if (formatted.length === 0) {
           setQuestions([
             { id: 'q1', text: 'Did you have a good sleep last night? 💤', enabled: true },
             { id: 'q2', text: 'Did you eat a healthy breakfast today? 🍎', enabled: true },
             { id: 'q3', text: 'Do you feel ready and excited to learn today? 📚', enabled: true },
           ]);
         } else {
-          setQuestions(filtered);
+          setQuestions(formatted);
         }
       } else {
         // Fallback standard questions
@@ -179,11 +176,7 @@ export default function WellnessScreen() {
   };
 
   const handleEmotionToggle = (emotionId: string) => {
-    setSelectedEmotions((prev) =>
-      prev.includes(emotionId)
-        ? prev.filter((id) => id !== emotionId)
-        : [...prev, emotionId]
-    );
+    setSelectedEmotions([emotionId]);
   };
 
   const handleQuestionAnswer = (qId: string, answer: boolean) => {
@@ -192,19 +185,21 @@ export default function WellnessScreen() {
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
-    const selectedMoodObj = MOOD_LEVELS.find((m) => m.score === moodScore) || MOOD_LEVELS[5];
+
+    const formattedQuestions: Record<string, boolean | null> = {};
+    questions.forEach((q) => {
+      formattedQuestions[q.text] = questionAnswers[q.id] !== undefined ? questionAnswers[q.id] : null;
+    });
 
     const payload = {
       roll_number: studentRoll,
-      mood_score: moodScore,
-      emotions: selectedEmotions,
-      question_answers: questionAnswers,
-      journal_text: journalText,
-      emoji: selectedMoodObj.emoji,
+      feeling_level: moodScore,
+      selected_emoji: selectedEmotions[0] || 'Happy',
+      questions: formattedQuestions,
     };
 
     try {
-      const res = await fetch(`${API_URL}/attendance/checkin`, {
+      const res = await fetch(`${API_URL}/wellness/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -238,7 +233,7 @@ export default function WellnessScreen() {
       Alert.alert('Color your emotions', 'Please pick at least one emotion piece that matches how you feel!');
       return;
     }
-    if (currentStep < 4) {
+    if (currentStep < 3) {
       setCurrentStep(currentStep + 1);
     }
   };
@@ -265,7 +260,6 @@ export default function WellnessScreen() {
     { label: 'Mood', icon: Heart },
     { label: 'Emotion', icon: Smile },
     { label: 'Check', icon: ClipboardList },
-    { label: 'Journal', icon: MessageCircle },
     { label: 'Confirm', icon: CheckCircle },
   ];
 
@@ -290,30 +284,13 @@ export default function WellnessScreen() {
             <View className="w-9" />
           </View>
 
-          {/* Progress Indicator */}
-          <View className="flex-row justify-between items-center px-8 py-4">
-            {steps.map((step, i) => {
-              const Icon = step.icon;
-              const isActive = i <= currentStep;
-              const isCurrent = i === currentStep;
-              return (
-                <React.Fragment key={i}>
-                  <MotiView
-                    animate={{
-                      scale: isCurrent ? 1.15 : 1,
-                      backgroundColor: isCurrent ? '#8b5cf6' : isActive ? '#c084fc' : '#cbd5e1',
-                    }}
-                    transition={{ type: 'spring', stiffness: 300 } as any}
-                    className="w-9 h-9 rounded-full items-center justify-center shadow-sm"
-                  >
-                    <Icon color="white" size={16} />
-                  </MotiView>
-                  {i < steps.length - 1 && (
-                    <View className={`flex-1 h-1 mx-1 rounded-full ${i < currentStep ? 'bg-purple-300' : 'bg-slate-200'}`} />
-                  )}
-                </React.Fragment>
-              );
-            })}
+          {/* Horizontal Progress Bar matching the web exactly */}
+          <View style={{ height: 6, backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: 3, marginHorizontal: 24, marginTop: 12, overflow: 'hidden' }}>
+            <MotiView
+              animate={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
+              transition={{ type: 'spring', damping: 15 }}
+              style={{ height: '100%', backgroundColor: '#ec4899', borderRadius: 3 }}
+            />
           </View>
 
           {/* Step Contents */}
@@ -321,67 +298,100 @@ export default function WellnessScreen() {
               {currentStep === 0 && (
                 <MotiView
                   key="step0"
-                  from={{ opacity: 0, translateX: 50 }}
-                  animate={{ opacity: 1, translateX: 0 }}
-                  exit={{ opacity: 0, translateX: -50 }}
+                  from={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
                   transition={{ type: 'spring', stiffness: 200 } as any}
-                  className="flex-1 justify-center py-4"
+                  className="flex-1 justify-center py-4 items-center"
                 >
-                  <View className="items-center mb-6">
-                    <Text className="text-2xl font-black text-slate-800 text-center">How are you feeling today?</Text>
-                    <Text className="text-slate-500 font-bold text-sm mt-1 text-center">Slide the wheel or tap a number to choose 1-10</Text>
+                  <View className="items-center mb-4">
+                    <Text className="text-3xl font-black text-slate-800 text-center" style={{ color: '#312e81' }}>How Are You Feeling?</Text>
+                    <Text className="text-slate-500 font-bold text-xs mt-1 text-center">Drag the clock hand to show your mood (1-10)</Text>
                   </View>
 
                   {/* Interactive Clock Dial */}
-                  <View className="items-center justify-center my-6 relative">
+                  <View className="items-center justify-center my-4 relative">
                     <MotiView
-                      animate={{ scale: [0.95, 1.05, 0.95] }}
+                      animate={{ scale: [0.98, 1.02, 0.98] }}
                       transition={{ loop: true, type: 'timing', duration: 4000 } as any}
                       style={{
                         position: 'absolute',
                         width: 250,
                         height: 250,
                         borderRadius: 125,
-                        backgroundColor: selectedMood.color,
-                        opacity: 0.08,
+                        backgroundColor: '#a78bfa',
+                        opacity: 0.06,
                       }}
                     />
 
-                    <View style={{ width: 240, height: 240, position: 'relative' }} className="bg-white/90 border border-white rounded-full shadow-2xl items-center justify-center p-2">
-                      <Svg viewBox="0 0 200 200" width="100%" height="100%">
+                    <View style={{ width: 240, height: 260, position: 'relative', alignItems: 'center', justifyContent: 'center' }}>
+                      <Svg viewBox="0 0 200 220" width="100%" height="100%">
                         <Defs>
                           <RadialGradient id="clockBg" cx="50%" cy="50%" rx="50%" ry="50%">
                             <Stop offset="0%" stopColor="#ffffff" />
                             <Stop offset="100%" stopColor="#f3f0ff" />
                           </RadialGradient>
                         </Defs>
-                        <Circle cx="100" cy="100" r="90" fill="url(#clockBg)" stroke={selectedMood.color} strokeWidth="3" />
+
+                        {/* Outer Shadow of legs */}
+                        <Ellipse cx="100" cy="212" rx="60" ry="7" fill="rgba(30, 27, 75, 0.15)" />
+
+                        {/* Clock Legs */}
+                        <Line x1="45" y1="185" x2="25" y2="210" stroke="#3b0764" strokeWidth="11" strokeLinecap="round" />
+                        <Line x1="155" y1="185" x2="175" y2="210" stroke="#3b0764" strokeWidth="11" strokeLinecap="round" />
+
+                        {/* Top Bell Structures */}
+                        <Rect x="82" y="3" width="36" height="8" rx="4" fill="#3b0764" />
+                        <Path d="M 86,4 Q 100,-10 114,4" fill="none" stroke="#6d28d9" strokeWidth="5" strokeLinecap="round" />
+                        
+                        {/* Alarm Clock Top bells (left / right) */}
+                        <Path d="M 45,35 Q 30,10 60,18" fill="none" stroke="#3b0764" strokeWidth="7" strokeLinecap="round" />
+                        <Path d="M 155,35 Q 170,10 140,18" fill="none" stroke="#3b0764" strokeWidth="7" strokeLinecap="round" />
+
+                        {/* Main Clock Face circle */}
+                        <Circle cx="100" cy="110" r="85" fill="url(#clockBg)" stroke="#c084fc" strokeWidth="3" />
 
                         {/* Hand pointing to selected number */}
                         {(() => {
-                          const angle = ((moodScore - 1) / 10) * 2 * Math.PI - Math.PI / 2;
-                          const handLength = 65;
+                          const angle = ((moodScore - 10) / 10) * 2 * Math.PI - Math.PI / 2;
+                          const handLength = 62;
                           const hX = 100 + handLength * Math.cos(angle);
-                          const hY = 100 + handLength * Math.sin(angle);
+                          const hY = 110 + handLength * Math.sin(angle);
                           return (
                             <>
-                              <Line x1="100" y1="100" x2={hX} y2={hY} stroke={selectedMood.color} strokeWidth="5" strokeLinecap="round" />
-                              <Circle cx={hX} cy={hY} r="7" fill={selectedMood.color} />
+                              <Line x1="100" y1="110" x2={hX} y2={hY} stroke="#f97316" strokeWidth="4.5" strokeLinecap="round" />
+                              <Circle cx={hX} cy={hY} r="9" fill="#f97316" />
+                              <Circle cx={hX} cy={hY} r="7.5" fill="white" />
+                              <SvgText x={hX} y={hY} dy="3" textAnchor="middle" fontSize="9" fontWeight="900" fill="#f97316">{moodScore}</SvgText>
                             </>
                           );
                         })()}
 
-                        {/* Center hub */}
-                        <Circle cx="100" cy="100" r="8" fill="#1e293b" />
-                        <Circle cx="100" cy="100" r="4" fill="white" />
+                        {/* Cute Character Face in the center of the clock */}
+                        {/* Eyes */}
+                        <Circle cx="87" cy="100" r="3.5" fill="#1e293b" />
+                        <Circle cx="113" cy="100" r="3.5" fill="#1e293b" />
+                        
+                        {/* Dynamic Smile/Concerned mouth */}
+                        {moodScore >= 5 ? (
+                          <Path d="M 94,111 Q 100,118 106,111" fill="none" stroke="#1e293b" strokeWidth="2.5" strokeLinecap="round" />
+                        ) : (
+                          <Path d="M 94,116 Q 100,108 106,116" fill="none" stroke="#1e293b" strokeWidth="2.5" strokeLinecap="round" />
+                        )}
 
-                        {/* Dial Numbers 1-10 */}
+                        {/* Mood Label text below the mouth */}
+                        <SvgText x="100" y="134" textAnchor="middle" fontSize="10" fontWeight="900" fill="#f97316">{selectedMood.label}</SvgText>
+
+                        {/* Center hub */}
+                        <Circle cx="100" cy="110" r="6" fill="#f97316" stroke="white" strokeWidth="1.5" />
+
+                        {/* Dial Numbers 1-10 around the clock face */}
                         {Array.from({ length: 10 }).map((_, i) => {
                           const val = i + 1;
-                          const angle = (i / 10) * 2 * Math.PI - Math.PI / 2;
-                          const r = 74;
+                          const angle = ((val - 10) / 10) * 2 * Math.PI - Math.PI / 2;
+                          const r = 70;
                           const nX = 100 + r * Math.cos(angle);
-                          const nY = 100 + r * Math.sin(angle);
+                          const nY = 110 + r * Math.sin(angle);
                           const isSelected = val === moodScore;
 
                           return (
@@ -389,11 +399,11 @@ export default function WellnessScreen() {
                               key={val}
                               x={nX}
                               y={nY}
-                              dy="5"
+                              dy="4"
                               textAnchor="middle"
-                              fontSize={isSelected ? '14' : '10'}
+                              fontSize={isSelected ? '13' : '9'}
                               fontWeight="900"
-                              fill={isSelected ? selectedMood.color : '#64748b'}
+                              fill={isSelected ? '#f97316' : '#cbd5e1'}
                             >
                               {val}
                             </SvgText>
@@ -401,249 +411,389 @@ export default function WellnessScreen() {
                         })}
                       </Svg>
 
-                      {/* Overlaid Central Mood Display */}
-                      <View className="absolute items-center justify-center pointer-events-none">
-                        <MotiView
-                          key={selectedMood.emoji}
-                          from={{ scale: 0.5, rotate: '-20deg' }}
-                          animate={{ scale: 1.25, rotate: '0deg' }}
-                          transition={{ type: 'spring', damping: 10 } as any}
-                        >
-                          <Text style={{ fontSize: 44 }}>{selectedMood.emoji}</Text>
-                        </MotiView>
-                      </View>
-
                       {/* Transparent Gesture overlay for drag/tap dial interaction */}
                       <View
                         style={{
                           position: 'absolute',
                           width: 240,
                           height: 240,
+                          top: 10,
                           borderRadius: 120,
                           backgroundColor: 'transparent',
                         }}
                         onStartShouldSetResponder={() => true}
                         onMoveShouldSetResponder={() => true}
-                        onResponderGrant={handleDialTouch}
-                        onResponderMove={handleDialTouch}
+                        onResponderGrant={(e) => {
+                          const { locationX, locationY } = e.nativeEvent;
+                          const dx = locationX - 120;
+                          const dy = locationY - 120;
+                          if (Math.sqrt(dx * dx + dy * dy) < 20) return;
+                          let angle = Math.atan2(dy, dx);
+                          let shiftedAngle = angle + Math.PI / 2;
+                          if (shiftedAngle < 0) shiftedAngle += 2 * Math.PI;
+                          const segment = (2 * Math.PI) / 10;
+                          let index = Math.round(shiftedAngle / segment);
+                          if (index >= 10) index = 0;
+                          let score = index;
+                          if (score === 0) score = 10;
+                          setMoodScore(score);
+                        }}
+                        onResponderMove={(e) => {
+                          const { locationX, locationY } = e.nativeEvent;
+                          const dx = locationX - 120;
+                          const dy = locationY - 120;
+                          if (Math.sqrt(dx * dx + dy * dy) < 20) return;
+                          let angle = Math.atan2(dy, dx);
+                          let shiftedAngle = angle + Math.PI / 2;
+                          if (shiftedAngle < 0) shiftedAngle += 2 * Math.PI;
+                          const segment = (2 * Math.PI) / 10;
+                          let index = Math.round(shiftedAngle / segment);
+                          if (index >= 10) index = 0;
+                          let score = index;
+                          if (score === 0) score = 10;
+                          setMoodScore(score);
+                        }}
                       />
                     </View>
                   </View>
 
-                  {/* Mood Info Card */}
-                  <View className="bg-white/80 border border-white/60 p-5 rounded-3xl shadow-lg mt-4 items-center max-w-sm mx-auto">
-                    <View className="flex-row items-center gap-2 mb-1">
-                      <Text className="text-xl font-black text-slate-800">{moodScore}</Text>
-                      <Text className="text-slate-400 font-bold">/ 10</Text>
-                      <Text style={{ color: selectedMood.color, fontWeight: '900', fontSize: 16 }} className="ml-2">
-                        {selectedMood.label}
-                      </Text>
+                  {/* Mood Info Badge Pill under the clock */}
+                  <View style={{ backgroundColor: 'rgba(30, 41, 59, 0.85)', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }}>
+                    <Text style={{ fontSize: 24, fontWeight: '900', color: '#f59e0b' }}>{moodScore}</Text>
+                    <View style={{ height: 18, width: 1, backgroundColor: 'rgba(255,255,255,0.2)' }} />
+                    <View>
+                      <Text style={{ fontSize: 13, fontWeight: '900', color: 'white' }}>{selectedMood.label}</Text>
+                      <Text style={{ fontSize: 9, fontWeight: '700', color: '#cbd5e1' }}>out of 10</Text>
                     </View>
-                    <Text className="text-slate-500 font-semibold text-xs text-center">{selectedMood.desc}</Text>
                   </View>
 
-                  {/* Tappable Slider Buttons */}
-                  <View className="flex-row flex-wrap justify-center gap-2.5 mt-8 px-2">
-                    {MOOD_LEVELS.map((item) => (
-                      <Touchable
-                        key={item.score}
-                        onPress={() => setMoodScore(item.score)}
-                        style={[
-                          {
-                            width: 44,
-                            height: 44,
-                            borderRadius: 16,
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            borderWidth: 2,
-                          },
-                          moodScore === item.score
-                            ? { backgroundColor: '#9333ea', borderColor: '#9333ea' }
-                            : { backgroundColor: 'rgba(255,255,255,0.8)', borderColor: '#f1f5f9' }
-                        ]}
-                      >
-                        <Text
-                          style={{
-                            fontSize: 16,
-                            fontWeight: '900',
-                            color: moodScore === item.score ? '#ffffff' : '#334155'
-                          }}
-                        >
-                          {item.score}
-                        </Text>
-                      </Touchable>
-                    ))}
+                  {/* Star Rating system under the badge */}
+                  <View style={{ flexDirection: 'row', gap: 6, marginTop: 16 }}>
+                    {Array.from({ length: 5 }).map((_, i) => {
+                      const isActive = (i + 1) <= Math.ceil(moodScore / 2);
+                      return (
+                        <Star
+                          key={i}
+                          size={20}
+                          color={isActive ? '#f59e0b' : '#cbd5e1'}
+                          fill={isActive ? '#f59e0b' : 'transparent'}
+                        />
+                      );
+                    })}
                   </View>
+
+                  {/* Solid orange Continue Button exactly matching the screenshot */}
+                  <Touchable
+                    onPress={nextStep}
+                    style={{
+                      backgroundColor: '#e68a19',
+                      paddingVertical: 15,
+                      paddingHorizontal: 36,
+                      borderRadius: 24,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      marginTop: 24,
+                      width: '100%',
+                      maxWidth: 280,
+                      shadowColor: '#e68a19',
+                      shadowOffset: { width: 0, height: 6 },
+                      shadowOpacity: 0.35,
+                      shadowRadius: 10,
+                      elevation: 6
+                    }}
+                  >
+                    <Text style={{ color: 'white', fontWeight: '900', fontSize: 15 }}>Continue Check-In</Text>
+                    <ArrowRight size={16} color="white" />
+                  </Touchable>
                 </MotiView>
               )}
 
               {currentStep === 1 && (
                 <MotiView
                   key="step1"
-                  from={{ opacity: 0, translateX: 50 }}
-                  animate={{ opacity: 1, translateX: 0 }}
-                  exit={{ opacity: 0, translateX: -50 }}
-                  className="flex-1 justify-center py-4"
+                  from={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ type: 'spring', stiffness: 200 } as any}
+                  className="flex-1 justify-center py-4 items-center"
                 >
-                  <View className="items-center mb-6">
-                    <Text className="text-2xl font-black text-slate-800 text-center">Color your emotions!</Text>
-                    <Text className="text-slate-500 font-bold text-sm mt-1 text-center">Select all the feeling puzzle pieces that fit today</Text>
+                  <View className="items-center mb-4">
+                    <Text className="text-2xl font-black text-slate-800 text-center" style={{ color: '#312e81' }}>Color in your emotion using the key below</Text>
                   </View>
 
                   {/* Puzzle Lightbulb Component */}
-                  <View className="items-center justify-center my-6">
-                    <View style={{ width: 200, height: 260 }} className="relative items-center justify-center">
-                      <Svg viewBox="0 0 160 220" width="100%" height="100%">
-                        <Defs>
-                          <RadialGradient id="bulbBaseGrad" cx="50%" cy="50%" rx="50%" ry="50%">
-                            <Stop offset="0%" stopColor="#ffffff" />
-                            <Stop offset="100%" stopColor="#e2e8f0" />
-                          </RadialGradient>
-                        </Defs>
+                  {(() => {
+                    const activeEmotion = EMOTIONS.find(e => selectedEmotions.includes(e.id)) || EMOTIONS[0];
+                    return (
+                      <>
+                        <View className="items-center justify-center my-4">
+                          <View style={{ width: 180, height: 220 }} className="relative items-center justify-center">
+                            <Svg viewBox="0 0 200 240" width="100%" height="100%">
+                              <Defs>
+                                {/* Inner glow radial gradient */}
+                                <RadialGradient id="bulbGlow" cx="50%" cy="50%" rx="50%" ry="50%">
+                                  <Stop offset="0%" stopColor={activeEmotion.color} stopOpacity="0.8" />
+                                  <Stop offset="60%" stopColor={activeEmotion.color} stopOpacity="0.3" />
+                                  <Stop offset="100%" stopColor={activeEmotion.color} stopOpacity="0" />
+                                </RadialGradient>
+                              </Defs>
 
-                        {/* Top-Left piece (Excited) */}
-                        <Path
-                          d="M 80,10 C 50,10 25,30 20,60 C 20,70 25,80 35,90 L 70,80 L 80,45 Z"
-                          fill={selectedEmotions.includes('Excited') ? '#ec4899' : 'rgba(203, 213, 225, 0.4)'}
-                          stroke="#ffffff"
-                          strokeWidth="2.5"
-                          onPress={() => handleEmotionToggle('Excited')}
-                        />
+                              {/* Outer Glow Effect circle */}
+                              <Circle cx="100" cy="100" r="85" fill="url(#bulbGlow)" />
 
-                        {/* Top-Right piece (Happy) */}
-                        <Path
-                          d="M 80,10 C 110,10 135,30 140,60 C 140,70 135,80 125,90 L 90,80 L 80,45 Z"
-                          fill={selectedEmotions.includes('Happy') ? '#22c55e' : 'rgba(203, 213, 225, 0.4)'}
-                          stroke="#ffffff"
-                          strokeWidth="2.5"
-                          onPress={() => handleEmotionToggle('Happy')}
-                        />
+                              {/* Sparkles / Light rays outside the bulb */}
+                              <Line x1="40" y1="40" x2="32" y2="32" stroke={activeEmotion.color} strokeWidth="3.5" strokeLinecap="round" opacity="0.8" />
+                              <Line x1="160" y1="40" x2="168" y2="32" stroke={activeEmotion.color} strokeWidth="3.5" strokeLinecap="round" opacity="0.8" />
+                              <Line x1="25" y1="100" x2="15" y2="100" stroke={activeEmotion.color} strokeWidth="3.5" strokeLinecap="round" opacity="0.8" />
+                              <Line x1="175" y1="100" x2="185" y2="100" stroke={activeEmotion.color} strokeWidth="3.5" strokeLinecap="round" opacity="0.8" />
 
-                        {/* Middle-Left piece (Worried) */}
-                        <Path
-                          d="M 35,90 L 70,80 L 80,120 L 45,135 C 38,125 32,105 35,90 Z"
-                          fill={selectedEmotions.includes('Worried') ? '#f59e0b' : 'rgba(203, 213, 225, 0.4)'}
-                          stroke="#ffffff"
-                          strokeWidth="2.5"
-                          onPress={() => handleEmotionToggle('Worried')}
-                        />
+                              {/* Main Bulb Fill Layer */}
+                              <Path
+                                d="M 54.1,146 C 40,120 35,90 35,75 C 35,39 64.1,10 100,10 C 135.9,10 165,39 165,75 C 165,90 160,120 145.9,146 C 141,155 130,170 130,185 L 70,185 C 70,170 59,155 54.1,146 Z"
+                                fill={activeEmotion.color}
+                                opacity="0.85"
+                                stroke={activeEmotion.color}
+                                strokeWidth="3.5"
+                              />
 
-                        {/* Middle-Right piece (Scared) */}
-                        <Path
-                          d="M 125,90 L 90,80 L 80,120 L 115,135 C 122,125 128,105 125,90 Z"
-                          fill={selectedEmotions.includes('Scared') ? '#64748b' : 'rgba(203, 213, 225, 0.4)'}
-                          stroke="#ffffff"
-                          strokeWidth="2.5"
-                          onPress={() => handleEmotionToggle('Scared')}
-                        />
+                              {/* Inner network lines */}
+                              <Line x1="100" y1="25" x2="100" y2="175" stroke="#ffffff" strokeWidth="2" opacity="0.6" />
+                              <Line x1="45" y1="95" x2="155" y2="95" stroke="#ffffff" strokeWidth="2" opacity="0.6" />
+                              
+                              {/* Curved network lines */}
+                              <Path d="M 55,60 C 90,65 110,65 145,60" fill="none" stroke="#ffffff" strokeWidth="2" opacity="0.6" />
+                              <Path d="M 55,130 C 90,125 110,125 145,130" fill="none" stroke="#ffffff" strokeWidth="2" opacity="0.6" />
+                              
+                              {/* Node Dots */}
+                              <Circle cx="100" cy="35" r="4.5" fill="#ffffff" />
+                              <Circle cx="100" cy="155" r="4.5" fill="#ffffff" />
+                              <Circle cx="55" cy="95" r="4.5" fill="#ffffff" />
+                              <Circle cx="145" cy="95" r="4.5" fill="#ffffff" />
+                              <Circle cx="100" cy="95" r="5" fill="#ffffff" />
 
-                        {/* Bottom-Left piece (Sad) */}
-                        <Path
-                          d="M 45,135 L 80,120 L 80,165 C 65,165 52,150 45,135 Z"
-                          fill={selectedEmotions.includes('Sad') ? '#3b82f6' : 'rgba(203, 213, 225, 0.4)'}
-                          stroke="#ffffff"
-                          strokeWidth="2.5"
-                          onPress={() => handleEmotionToggle('Sad')}
-                        />
+                              {/* Character Face in the center of the lightbulb */}
+                              {/* Eyes */}
+                              <Circle cx="87" cy="85" r="3.5" fill="#ffffff" />
+                              <Circle cx="113" cy="85" r="3.5" fill="#ffffff" />
+                              
+                              {/* Smiling mouth */}
+                              <Path d="M 94,96 Q 100,103 106,96" fill="none" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" />
 
-                        {/* Bottom-Right piece (Mad) */}
-                        <Path
-                          d="M 115,135 L 80,120 L 80,165 C 95,165 108,150 115,135 Z"
-                          fill={selectedEmotions.includes('Mad') ? '#ef4444' : 'rgba(203, 213, 225, 0.4)'}
-                          stroke="#ffffff"
-                          strokeWidth="2.5"
-                          onPress={() => handleEmotionToggle('Mad')}
-                        />
+                              {/* Screw Base Thread Lines */}
+                              <Line x1="72" y1="189" x2="128" y2="189" stroke="#1e1b4b" strokeWidth="7" strokeLinecap="round" />
+                              <Line x1="76" y1="197" x2="124" y2="197" stroke="#1e1b4b" strokeWidth="7" strokeLinecap="round" />
+                              <Line x1="81" y1="205" x2="119" y2="205" stroke="#1e1b4b" strokeWidth="7" strokeLinecap="round" />
+                              <Line x1="87" y1="213" x2="113" y2="213" stroke="#1e1b4b" strokeWidth="7" strokeLinecap="round" />
+                            </Svg>
+                          </View>
+                        </View>
 
-                        {/* Bulb Screw Base */}
-                        <Path d="M 55,167 L 105,167 L 100,187 L 60,187 Z" fill="url(#bulbBaseGrad)" stroke="#cbd5e1" strokeWidth="2" />
-                        <Path d="M 60,187 L 100,187 L 95,197 L 65,197 Z" fill="#94a3b8" />
-                        <Circle cx="80" cy="202" r="5" fill="#475569" />
-                      </Svg>
+                        <View className="items-center mb-4">
+                          <Text className="text-slate-500 font-bold text-xs mt-1 text-center">How do you feel on a daily basis?</Text>
+                        </View>
 
-                      <View className="absolute pointer-events-none items-center justify-center">
-                        <Sparkles size={24} color="#f59e0b" />
-                      </View>
-                    </View>
-                  </View>
+                        {/* Emotion Choice Buttons Grid */}
+                        <View className="flex-row flex-wrap justify-center gap-3 mt-2 px-2 max-w-sm">
+                          {EMOTIONS.map((emotion) => {
+                            const isSelected = selectedEmotions.includes(emotion.id);
+                            return (
+                              <Touchable
+                                key={emotion.id}
+                                onPress={() => handleEmotionToggle(emotion.id)}
+                                style={{
+                                  width: '30%',
+                                  height: 80,
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  borderRadius: 16,
+                                  borderWidth: 2,
+                                  borderColor: isSelected ? emotion.color : 'rgba(255,255,255,0.1)',
+                                  backgroundColor: isSelected ? emotion.color : 'rgba(30, 41, 59, 0.55)',
+                                  shadowColor: isSelected ? emotion.color : 'transparent',
+                                  shadowOffset: { width: 0, height: 6 },
+                                  shadowOpacity: isSelected ? 0.4 : 0,
+                                  shadowRadius: 10,
+                                  elevation: isSelected ? 6 : 0,
+                                }}
+                              >
+                                <Text style={{ fontSize: 24, marginBottom: 4 }}>{emotion.emoji}</Text>
+                                <Text style={{ color: isSelected ? 'white' : '#cbd5e1', fontWeight: '900', fontSize: 11 }}>
+                                  {emotion.label}
+                                </Text>
+                              </Touchable>
+                            );
+                          })}
+                        </View>
+                      </>
+                    );
+                  })()}
 
-                  {/* Emotion Toggles Grid */}
-                  <View className="flex-row flex-wrap justify-center gap-3 mt-6">
-                    {EMOTIONS.map((emotion) => {
-                      const isSelected = selectedEmotions.includes(emotion.id);
-                      return (
-                        <Touchable
-                          key={emotion.id}
-                          onPress={() => handleEmotionToggle(emotion.id)}
-                          style={{
-                            backgroundColor: isSelected ? emotion.color : 'rgba(255,255,255,0.7)',
-                            borderColor: isSelected ? emotion.color : '#e2e8f0',
-                            borderWidth: 2,
-                            paddingHorizontal: 18,
-                            paddingVertical: 12,
-                            borderRadius: 20,
-                            shadowColor: isSelected ? emotion.color : '#000',
-                            shadowOffset: { width: 0, height: 4 },
-                            shadowOpacity: isSelected ? 0.2 : 0,
-                            shadowRadius: 6,
-                            elevation: isSelected ? 4 : 0,
-                          }}
-                        >
-                          <Text className={`font-black text-sm ${isSelected ? 'text-white' : 'text-slate-700'}`}>
-                            {emotion.label}
-                          </Text>
-                        </Touchable>
-                      );
-                    })}
-                  </View>
+                  {/* Solid Pink/Magenta Continue Button exactly matching the screenshot */}
+                  <Touchable
+                    onPress={nextStep}
+                    style={{
+                      backgroundColor: '#db2777',
+                      paddingVertical: 15,
+                      paddingHorizontal: 36,
+                      borderRadius: 24,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      marginTop: 24,
+                      width: '100%',
+                      maxWidth: 280,
+                      shadowColor: '#db2777',
+                      shadowOffset: { width: 0, height: 6 },
+                      shadowOpacity: 0.35,
+                      shadowRadius: 10,
+                      elevation: 6
+                    }}
+                  >
+                    <Text style={{ color: 'white', fontWeight: '900', fontSize: 15 }}>Continue</Text>
+                    <ArrowRight size={16} color="white" />
+                  </Touchable>
                 </MotiView>
               )}
 
               {currentStep === 2 && (
                 <MotiView
                   key="step2"
-                  from={{ opacity: 0, translateX: 50 }}
-                  animate={{ opacity: 1, translateX: 0 }}
-                  exit={{ opacity: 0, translateX: -50 }}
-                  className="flex-1 justify-center py-4"
+                  from={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ type: 'spring', stiffness: 200 } as any}
+                  className="flex-1 justify-center py-4 items-center w-full"
                 >
-                  <View className="items-center mb-6">
-                    <Text className="text-2xl font-black text-slate-800 text-center">Let's answer some quick questions!</Text>
-                    <Text className="text-slate-500 font-bold text-sm mt-1 text-center">Tap Yes or No for each check-in item</Text>
-                  </View>
+                  {/* Glassmorphic Questions Card */}
+                  <View
+                    style={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.25)',
+                      borderColor: 'rgba(255, 255, 255, 0.45)',
+                      borderWidth: 1.5,
+                      borderRadius: 28,
+                      paddingHorizontal: 20,
+                      paddingVertical: 24,
+                      width: '100%',
+                      maxWidth: 360,
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 10 },
+                      shadowOpacity: 0.08,
+                      shadowRadius: 20,
+                      elevation: 6
+                    }}
+                  >
+                    <Text style={{ fontSize: 22, fontWeight: '900', color: '#1e293b', textAlign: 'center', marginBottom: 20 }}>
+                      Quick Check!
+                    </Text>
 
-                  {/* Dynamic Questions Bank */}
-                  <View className="space-y-4 max-w-md mx-auto w-full">
-                    {questions.map((q) => {
-                      const ans = questionAnswers[q.id];
-                      return (
-                        <View key={q.id} className="bg-white/80 border border-white p-5 rounded-3xl shadow-sm my-2">
-                          <Text className="font-bold text-sm text-slate-800 mb-4 leading-relaxed">{q.text}</Text>
-                          <View className="flex-row gap-3">
-                            <Touchable
-                              onPress={() => handleQuestionAnswer(q.id, true)}
-                              className={`flex-1 py-3 rounded-2xl items-center border-2 ${
-                                ans === true
-                                  ? 'bg-green-500 border-green-500 shadow-md shadow-green-100'
-                                  : 'bg-slate-50/50 border-slate-100'
-                              }`}
-                            >
-                              <Text className={`font-black text-sm ${ans === true ? 'text-white' : 'text-slate-600'}`}>Yes 👍</Text>
-                            </Touchable>
-                            <Touchable
-                              onPress={() => handleQuestionAnswer(q.id, false)}
-                              className={`flex-1 py-3 rounded-2xl items-center border-2 ${
-                                ans === false
-                                  ? 'bg-red-500 border-red-500 shadow-md shadow-red-100'
-                                  : 'bg-slate-50/50 border-slate-100'
-                              }`}
-                            >
-                              <Text className={`font-black text-sm ${ans === false ? 'text-white' : 'text-slate-600'}`}>No 👎</Text>
-                            </Touchable>
+                    {/* Questions Bank List */}
+                    <View className="w-full">
+                      {questions.map((q) => {
+                        const ans = questionAnswers[q.id];
+                        return (
+                          <View
+                            key={q.id}
+                            style={{
+                              backgroundColor: 'rgba(255, 255, 255, 0.75)',
+                              borderColor: 'rgba(255, 255, 255, 0.5)',
+                              borderWidth: 1,
+                              borderRadius: 20,
+                              paddingHorizontal: 16,
+                              paddingVertical: 14,
+                              marginBottom: 14,
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: 12
+                            }}
+                          >
+                            <Text style={{ flex: 1, color: '#334155', fontWeight: '900', fontSize: 13, lineHeight: 18 }}>
+                              {q.text}
+                            </Text>
+
+                            <View style={{ flexDirection: 'row', gap: 8 }}>
+                              {/* Thumbs Up Button */}
+                              <Touchable
+                                onPress={() => handleQuestionAnswer(q.id, true)}
+                                style={{
+                                  width: 38,
+                                  height: 38,
+                                  borderRadius: 12,
+                                  borderWidth: 1.5,
+                                  borderColor: ans === true ? '#10b981' : '#cbd5e1',
+                                  backgroundColor: '#ffffff',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  shadowColor: ans === true ? '#10b981' : 'transparent',
+                                  shadowOffset: { width: 0, height: 4 },
+                                  shadowOpacity: ans === true ? 0.2 : 0,
+                                  shadowRadius: 6,
+                                  elevation: ans === true ? 3 : 0
+                                }}
+                              >
+                                <ThumbsUp
+                                  size={18}
+                                  color={ans === true ? '#10b981' : '#64748b'}
+                                  fill={ans === true ? '#10b981' : 'none'}
+                                />
+                              </Touchable>
+
+                              {/* Thumbs Down Button */}
+                              <Touchable
+                                onPress={() => handleQuestionAnswer(q.id, false)}
+                                style={{
+                                  width: 38,
+                                  height: 38,
+                                  borderRadius: 12,
+                                  borderWidth: 1.5,
+                                  borderColor: ans === false ? '#ef4444' : '#cbd5e1',
+                                  backgroundColor: '#ffffff',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  shadowColor: ans === false ? '#ef4444' : 'transparent',
+                                  shadowOffset: { width: 0, height: 4 },
+                                  shadowOpacity: ans === false ? 0.2 : 0,
+                                  shadowRadius: 6,
+                                  elevation: ans === false ? 3 : 0
+                                }}
+                              >
+                                <ThumbsDown
+                                  size={18}
+                                  color={ans === false ? '#ef4444' : '#64748b'}
+                                  fill={ans === false ? '#ef4444' : 'none'}
+                                />
+                              </Touchable>
+                            </View>
                           </View>
-                        </View>
-                      );
-                    })}
+                        );
+                      })}
+                    </View>
+
+                    {/* Solid pink Almost Done Continue button inside the card */}
+                    <Touchable
+                      onPress={nextStep}
+                      style={{
+                        backgroundColor: '#f472b6',
+                        paddingVertical: 15,
+                        borderRadius: 24,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginTop: 10,
+                        width: '100%',
+                        shadowColor: '#f472b6',
+                        shadowOffset: { width: 0, height: 6 },
+                        shadowOpacity: 0.35,
+                        shadowRadius: 10,
+                        elevation: 5
+                      }}
+                    >
+                      <Text style={{ color: 'white', fontWeight: '900', fontSize: 15 }}>
+                        Almost Done! ✨
+                      </Text>
+                    </Touchable>
                   </View>
                 </MotiView>
               )}
@@ -651,128 +801,79 @@ export default function WellnessScreen() {
               {currentStep === 3 && (
                 <MotiView
                   key="step3"
-                  from={{ opacity: 0, translateX: 50 }}
-                  animate={{ opacity: 1, translateX: 0 }}
-                  exit={{ opacity: 0, translateX: -50 }}
-                  className="flex-1 justify-center py-4"
+                  from={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ type: 'spring', stiffness: 200 } as any}
+                  className="flex-1 justify-center py-4 items-center w-full"
                 >
-                  <View className="items-center mb-6">
-                    <Text className="text-2xl font-black text-slate-800 text-center">Draw or write your thoughts ✏️</Text>
-                    <Text className="text-slate-500 font-bold text-sm mt-1 text-center">Is there anything you want to share with your teacher? (Optional)</Text>
-                  </View>
+                  <View className="items-center justify-center py-8">
+                    {/* Glowing Purple Party Popper Badge */}
+                    <View
+                      style={{
+                        width: 80,
+                        height: 80,
+                        borderRadius: 40,
+                        backgroundColor: '#d946ef',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        shadowColor: '#d946ef',
+                        shadowOffset: { width: 0, height: 8 },
+                        shadowOpacity: 0.4,
+                        shadowRadius: 16,
+                        elevation: 8,
+                        marginBottom: 24
+                      }}
+                    >
+                      <Sparkles size={36} color="white" />
+                    </View>
 
-                  <View className="bg-white/80 border border-white p-5 rounded-3xl shadow-xl max-w-md mx-auto w-full">
-                    <TextInput
-                      multiline
-                      numberOfLines={6}
-                      value={journalText}
-                      onChangeText={setJournalText}
-                      placeholder="Today, I am thinking about..."
-                      placeholderTextColor="#94a3b8"
-                      textAlignVertical="top"
-                      className="w-full min-h-[150] bg-slate-50/50 border-2 border-slate-100 rounded-2xl p-4 text-slate-800 font-semibold text-sm leading-relaxed"
-                    />
-                    <Text className="text-[10px] text-slate-400 font-semibold mt-3 ml-1">
-                      🔒 Only your teacher can read what you write here
+                    {/* All Done Header and Subtext */}
+                    <Text style={{ fontSize: 26, fontWeight: '900', color: '#1e293b', textAlign: 'center' }}>
+                      All Done!
                     </Text>
-                  </View>
-                </MotiView>
-              )}
+                    <Text style={{ fontSize: 13, color: '#64748b', fontWeight: 'bold', textAlign: 'center', marginTop: 8, paddingHorizontal: 20 }}>
+                      Your emotional wellness check-in is complete.
+                    </Text>
 
-              {currentStep === 4 && (
-                <MotiView
-                  key="step4"
-                  from={{ opacity: 0, translateX: 50 }}
-                  animate={{ opacity: 1, translateX: 0 }}
-                  exit={{ opacity: 0, translateX: -50 }}
-                  className="flex-1 justify-center py-4"
-                >
-                  <View className="items-center mb-6">
-                    <Text className="text-2xl font-black text-slate-800 text-center">Review your choices! 🧐</Text>
-                    <Text className="text-slate-500 font-bold text-sm mt-1 text-center">Are you ready to submit your attendance?</Text>
-                  </View>
-
-                  <View className="space-y-4 max-w-md mx-auto w-full">
-                    {/* Stat Row */}
-                    <View className="bg-white/80 border border-white p-5 rounded-3xl shadow-sm flex-row items-center justify-between">
-                      <View>
-                        <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Selected Mood</Text>
-                        <Text className="text-lg font-black text-slate-800 mt-0.5">{selectedMood.label}</Text>
-                      </View>
-                      <View className="w-12 h-12 rounded-2xl bg-purple-50 items-center justify-center">
-                        <Text style={{ fontSize: 24 }}>{selectedMood.emoji}</Text>
-                      </View>
-                    </View>
-
-                    {/* Emotions Row */}
-                    <View className="bg-white/80 border border-white p-5 rounded-3xl shadow-sm">
-                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Picked Emotions</Text>
-                      <View className="flex-row flex-wrap gap-1.5">
-                        {selectedEmotions.map((emId) => {
-                          const emo = EMOTIONS.find((e) => e.id === emId);
-                          return (
-                            <View key={emId} style={{ backgroundColor: emo?.bg }} className="px-3 py-1.5 rounded-xl border border-slate-100">
-                              <Text style={{ color: emo?.color || '#334155' }} className="font-bold text-xs">{emo?.label || emId}</Text>
-                            </View>
-                          );
-                        })}
-                      </View>
-                    </View>
-
-                    {/* Questions Row */}
-                    <View className="bg-white/80 border border-white p-5 rounded-3xl shadow-sm">
-                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2.5">Check-in Responses</Text>
-                      <View className="space-y-2">
-                        {questions.map((q) => {
-                          const ans = questionAnswers[q.id];
-                          return (
-                            <View key={q.id} className="flex-row justify-between items-center py-1">
-                              <Text className="text-slate-600 font-bold text-xs flex-1 pr-3" numberOfLines={1}>
-                                {q.text}
-                              </Text>
-                              <Text className={`font-black text-xs ${ans ? 'text-green-600' : ans === false ? 'text-red-500' : 'text-slate-400'}`}>
-                                {ans ? 'Yes 👍' : ans === false ? 'No 👎' : 'Skipped'}
-                              </Text>
-                            </View>
-                          );
-                        })}
-                      </View>
-                    </View>
-
-                    {/* Journal Summary */}
-                    {journalText.trim() && (
-                      <View className="bg-white/80 border border-white p-5 rounded-3xl shadow-sm">
-                        <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Journal Entry</Text>
-                        <Text className="text-slate-600 font-semibold text-xs leading-relaxed" numberOfLines={2}>
-                          {journalText}
+                    {/* Solid Green Submit Button exactly matching the screenshot */}
+                    <Touchable
+                      onPress={handleSubmit}
+                      disabled={isSubmitting}
+                      style={{
+                        backgroundColor: '#10b981',
+                        paddingVertical: 15,
+                        paddingHorizontal: 36,
+                        borderRadius: 24,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 8,
+                        marginTop: 28,
+                        width: '100%',
+                        maxWidth: 280,
+                        shadowColor: '#10b981',
+                        shadowOffset: { width: 0, height: 6 },
+                        shadowOpacity: 0.35,
+                        shadowRadius: 10,
+                        elevation: 6
+                      }}
+                    >
+                      {isSubmitting ? (
+                        <ActivityIndicator color="white" />
+                      ) : (
+                        <Text style={{ color: 'white', fontWeight: '900', fontSize: 15 }}>
+                          Submit Check-In ⭐
                         </Text>
-                      </View>
-                    )}
-
-                    {/* Big Submit Button */}
-                    <Touchable onPress={handleSubmit} disabled={isSubmitting} activeOpacity={0.8} className="mt-4">
-                      <LinearGradient
-                        colors={['#8b5cf6', '#ec4899']}
-                        start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                        className="w-full py-4 rounded-3xl flex-row items-center justify-center shadow-lg"
-                      >
-                        {isSubmitting ? (
-                          <ActivityIndicator color="white" />
-                        ) : (
-                          <>
-                            <Text className="text-white font-black text-base mr-2">Submit Check-In! 🏆</Text>
-                            <ArrowRight color="white" size={18} />
-                          </>
-                        )}
-                      </LinearGradient>
+                      )}
                     </Touchable>
                   </View>
                 </MotiView>
               )}
           </ScrollView>
-
+ 
           {/* Footer Controls */}
-          {currentStep < 4 && (
+          {currentStep < 3 && currentStep > 0 && (
             <View className="px-5 py-4 border-t border-white/40 flex-row gap-4 bg-white/30 backdrop-blur-lg">
               {currentStep > 0 ? (
                 <Touchable onPress={prevStep} className="flex-1 py-4 bg-white/70 border border-slate-100 rounded-2xl items-center justify-center flex-row shadow-sm">
