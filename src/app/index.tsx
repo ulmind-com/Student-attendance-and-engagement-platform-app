@@ -172,7 +172,7 @@ const BoyMascot = () => {
           style={{ width: '100%', height: '100%' }}
         >
           <Image
-            source={require('../../assets/mascot.png')}
+            source={require('../../assets/mascot.jpg')}
             style={{ width: '100%', height: '100%' }}
             resizeMode="contain"
           />
