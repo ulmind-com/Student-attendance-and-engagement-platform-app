@@ -334,7 +334,11 @@ export default function LoginScreen() {
       });
       if (res.ok) {
         await AsyncStorage.setItem("studentRoll", rollNumber);
-        router.push("/wellness");
+        // Play the premium transition mascot animation for 3.8 seconds
+        setTimeout(() => {
+          setIsLoginLoading(false);
+          router.push("/wellness");
+        }, 3800);
       } else {
         Alert.alert("Error", "❌ Invalid Magic Code! Ask your teacher for today's code.");
         setIsLoginLoading(false);
@@ -676,8 +680,25 @@ export default function LoginScreen() {
 
       {/* Loading Overlay */}
       {isLoginLoading && (
-        <View className="absolute inset-0 z-50 items-center justify-center bg-white/60">
-          <ActivityIndicator size="large" color="#a855f7" />
+        <View className="absolute inset-0 z-50 items-center justify-center bg-white/95">
+          <View className="items-center justify-center px-6">
+            <LottieView
+              source={require('../../assets/lottie/Sandy Loading.json')}
+              autoPlay
+              loop
+              style={{ width: 280, height: 280 }}
+            />
+            <MotiView
+              from={{ opacity: 0.5, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1.02 }}
+              transition={{ loop: true, type: 'timing', duration: 1500, direction: 'alternate' as any }}
+              style={{ marginTop: 24 }}
+            >
+              <Text className="text-xl sm:text-2xl font-black text-center text-purple-600">
+                Getting things ready... ✨
+              </Text>
+            </MotiView>
+          </View>
         </View>
       )}
     </View>
