@@ -34,6 +34,108 @@ const Touchable = ({ children, style, onPress, className, disabled, onLongPress,
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+// Dynamic import of expo-video with robust error handling for local simulator fallback
+let ExpoVideo: any = null;
+try {
+  ExpoVideo = require('expo-video');
+} catch (e) {
+  console.log("expo-video not loaded");
+}
+
+// Local WebM Mascot Video assets
+const VIDEO_HELLO = require('../../assets/c5308b7293ca45b582e1d5c19227c70c.webm');
+const VIDEO_LEARN = require('../../assets/ccb74e9e46ff4dba88e5e8174f14f5f1.webm');
+
+function VideoMascot() {
+  const [currentVideo, setCurrentVideo] = useState(VIDEO_HELLO);
+
+  if (!ExpoVideo || !ExpoVideo.useVideoPlayer || !ExpoVideo.VideoView) {
+    return (
+      <Image
+        source={require('../../assets/mascot.png')}
+        style={{ width: '100%', height: '100%' }}
+        resizeMode="contain"
+      />
+    );
+  }
+
+  try {
+    const player = ExpoVideo.useVideoPlayer(currentVideo, (p: any) => {
+      p.loop = false;
+      p.play();
+    });
+
+    useEffect(() => {
+      const subscription = player.addListener('playToEnd', () => {
+        // Toggle mascot video between hello and learning
+        setCurrentVideo((prev: any) => (prev === VIDEO_HELLO ? VIDEO_LEARN : VIDEO_HELLO));
+      });
+      return () => {
+        subscription.remove();
+      };
+    }, [player]);
+
+    return (
+      <ExpoVideo.VideoView
+        player={player}
+        style={{ width: '100%', height: '100%', backgroundColor: 'transparent' }}
+        nativeControls={false}
+        allowsFullscreen={false}
+        allowsPictureInPicture={false}
+      />
+    );
+  } catch (err) {
+    console.error("Failed to initialize video player:", err);
+    return (
+      <Image
+        source={require('../../assets/mascot.png')}
+        style={{ width: '100%', height: '100%' }}
+        resizeMode="contain"
+      />
+    );
+  }
+}
+
+function SandyLoadingVideo() {
+  if (!ExpoVideo || !ExpoVideo.useVideoPlayer || !ExpoVideo.VideoView) {
+    return (
+      <LottieView
+        source={require('../../assets/lottie/Sandy Loading.json')}
+        autoPlay
+        loop
+        style={{ width: 280, height: 280 }}
+      />
+    );
+  }
+
+  try {
+    const player = ExpoVideo.useVideoPlayer(require('../../assets/6683fc78a5514e8bb5c9a296bc6a9128.webm'), (p: any) => {
+      p.loop = true;
+      p.play();
+    });
+
+    return (
+      <ExpoVideo.VideoView
+        player={player}
+        style={{ width: 280, height: 280, backgroundColor: 'transparent' }}
+        nativeControls={false}
+        allowsFullscreen={false}
+        allowsPictureInPicture={false}
+      />
+    );
+  } catch (err) {
+    console.error("Failed to load Sandy Loading WebM video:", err);
+    return (
+      <LottieView
+        source={require('../../assets/lottie/Sandy Loading.json')}
+        autoPlay
+        loop
+        style={{ width: 280, height: 280 }}
+      />
+    );
+  }
+}
+
 const floatingItems = [
   { emoji: "⭐", x: "8%", y: "15%", delay: 0, size: 24 },
   { emoji: "🌈", x: "85%", y: "10%", delay: 400, size: 20 },
@@ -155,7 +257,6 @@ const BoyMascot = () => {
     }, 4000);
     return () => clearInterval(interval);
   }, []);
-
   return (
     <MotiView
       style={{ position: 'absolute', top: -165, right: 0, zIndex: 30 }}
@@ -164,19 +265,8 @@ const BoyMascot = () => {
       transition={{ type: 'spring', delay: 300, stiffness: 80 } as any}
     >
       <View style={{ position: 'relative', width: 180, height: 190 }}>
-        {/* Floating mascot image */}
-        <MotiView
-          from={{ translateY: 0 }}
-          animate={{ translateY: -10 }}
-          transition={{ loop: true, type: 'timing', duration: 2000, direction: 'alternate' as any }}
-          style={{ width: '100%', height: '100%' }}
-        >
-          <Image
-            source={require('../../assets/mascot.jpg')}
-            style={{ width: '100%', height: '100%' }}
-            resizeMode="contain"
-          />
-        </MotiView>
+        {/* Floating mascot video sequence */}
+        <VideoMascot />
 
         {/* Chat Bubble — cycles between Hello and Let's learn today */}
         <MotiView
@@ -446,11 +536,16 @@ export default function LoginScreen() {
           <Text style={{ fontSize: item.size }}>{item.emoji}</Text>
         </MotiView>
       ))}
-
       <SafeAreaView className="flex-1">
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1">
-          <ScrollView contentContainerClassName="flex-grow pt-4 pb-12 px-5">
-            
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} 
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+          className="flex-1"
+        >
+          <ScrollView 
+            contentContainerClassName="flex-grow pt-4 pb-12 px-5"
+            keyboardShouldPersistTaps="handled"
+          >
             {/* Top Navigation */}
             <MotiView 
               from={{ opacity: 0, translateX: -20 }} animate={{ opacity: 1, translateX: 0 }}
@@ -682,12 +777,7 @@ export default function LoginScreen() {
       {isLoginLoading && (
         <View className="absolute inset-0 z-50 items-center justify-center bg-white/95">
           <View className="items-center justify-center px-6">
-            <LottieView
-              source={require('../../assets/lottie/Sandy Loading.json')}
-              autoPlay
-              loop
-              style={{ width: 280, height: 280 }}
-            />
+            <SandyLoadingVideo />
             <MotiView
               from={{ opacity: 0.5, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1.02 }}
