@@ -47,95 +47,25 @@ const VIDEO_HELLO = require('../../assets/c5308b7293ca45b582e1d5c19227c70c.webm'
 const VIDEO_LEARN = require('../../assets/ccb74e9e46ff4dba88e5e8174f14f5f1.webm');
 
 function VideoMascot() {
-  const [currentVideo, setCurrentVideo] = useState(VIDEO_HELLO);
-
-  if (!ExpoVideo || !ExpoVideo.useVideoPlayer || !ExpoVideo.VideoView) {
-    return (
-      <LottieView
-        source={require('../../assets/lottie/bbbf7156-1170-11ee-a909-976822febe92.json')}
-        autoPlay
-        loop
-        style={{ width: '100%', height: '100%' }}
-      />
-    );
-  }
-
-  try {
-    const player = ExpoVideo.useVideoPlayer(currentVideo, (p: any) => {
-      p.loop = false;
-      p.play();
-    });
-
-    useEffect(() => {
-      const subscription = player.addListener('playToEnd', () => {
-        // Toggle mascot video between hello and learning
-        setCurrentVideo((prev: any) => (prev === VIDEO_HELLO ? VIDEO_LEARN : VIDEO_HELLO));
-      });
-      return () => {
-        subscription.remove();
-      };
-    }, [player]);
-
-    return (
-      <ExpoVideo.VideoView
-        player={player}
-        style={{ width: '100%', height: '100%', backgroundColor: 'transparent' }}
-        nativeControls={false}
-        allowsFullscreen={false}
-        allowsPictureInPicture={false}
-      />
-    );
-  } catch (err) {
-    console.error("Failed to initialize video player:", err);
-    return (
-      <LottieView
-        source={require('../../assets/lottie/bbbf7156-1170-11ee-a909-976822febe92.json')}
-        autoPlay
-        loop
-        style={{ width: '100%', height: '100%' }}
-      />
-    );
-  }
+  return (
+    <LottieView
+      source={require('../../assets/lottie/bbbf7156-1170-11ee-a909-976822febe92.json')}
+      autoPlay
+      loop
+      style={{ width: '100%', height: '100%' }}
+    />
+  );
 }
 
 function SandyLoadingVideo() {
-  if (!ExpoVideo || !ExpoVideo.useVideoPlayer || !ExpoVideo.VideoView) {
-    return (
-      <LottieView
-        source={require('../../assets/lottie/Sandy Loading.json')}
-        autoPlay
-        loop
-        style={{ width: 280, height: 280 }}
-      />
-    );
-  }
-
-  try {
-    const player = ExpoVideo.useVideoPlayer(require('../../assets/6683fc78a5514e8bb5c9a296bc6a9128.webm'), (p: any) => {
-      p.loop = true;
-      p.play();
-    });
-
-    return (
-      <ExpoVideo.VideoView
-        player={player}
-        style={{ width: 280, height: 280, backgroundColor: 'transparent' }}
-        nativeControls={false}
-        allowsFullscreen={false}
-        allowsPictureInPicture={false}
-      />
-    );
-  } catch (err) {
-    console.error("Failed to load Sandy Loading WebM video:", err);
-    return (
-      <LottieView
-        source={require('../../assets/lottie/Sandy Loading.json')}
-        autoPlay
-        loop
-        style={{ width: 280, height: 280 }}
-      />
-    );
-  }
+  return (
+    <LottieView
+      source={require('../../assets/lottie/Sandy Loading.json')}
+      autoPlay
+      loop
+      style={{ width: 280, height: 280 }}
+    />
+  );
 }
 
 const floatingItems = [
