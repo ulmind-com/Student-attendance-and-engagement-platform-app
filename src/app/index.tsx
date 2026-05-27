@@ -630,7 +630,7 @@ export default function LoginScreen() {
 
             {/* Dedicated Teacher Login Button */}
             <Touchable 
-              onPress={() => router.push('/admin')} 
+              onPress={() => setShowTeacherModal(true)} 
               className="mt-6 flex-row items-center justify-center gap-2 py-3"
             >
               <Lock size={14} color="#94a3b8" />
