@@ -41,7 +41,7 @@ const Touchable = ({ children, style, onPress, className, disabled, ...props }: 
   );
 };
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://student-attendance-and-engagement.onrender.com/api';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // Mood mapping definitions

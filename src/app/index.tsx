@@ -31,7 +31,7 @@ const Touchable = ({ children, style, onPress, className, disabled, onLongPress,
 };
 
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://student-attendance-and-engagement.onrender.com/api';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // Dynamic import of expo-video with robust error handling for local simulator fallback
