@@ -51,10 +51,11 @@ function VideoMascot() {
 
   if (!ExpoVideo || !ExpoVideo.useVideoPlayer || !ExpoVideo.VideoView) {
     return (
-      <Image
-        source={require('../../assets/mascot.png')}
+      <LottieView
+        source={require('../../assets/lottie/bbbf7156-1170-11ee-a909-976822febe92.json')}
+        autoPlay
+        loop
         style={{ width: '100%', height: '100%' }}
-        resizeMode="contain"
       />
     );
   }
@@ -87,10 +88,11 @@ function VideoMascot() {
   } catch (err) {
     console.error("Failed to initialize video player:", err);
     return (
-      <Image
-        source={require('../../assets/mascot.png')}
+      <LottieView
+        source={require('../../assets/lottie/bbbf7156-1170-11ee-a909-976822febe92.json')}
+        autoPlay
+        loop
         style={{ width: '100%', height: '100%' }}
-        resizeMode="contain"
       />
     );
   }

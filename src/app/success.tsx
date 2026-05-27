@@ -38,11 +38,21 @@ export default function SuccessScreen() {
         <View className="absolute top-0 w-full h-1 bg-gradient-to-r from-purple-500 to-pink-500" />
         
         {/* Done Lottie Animation */}
-        <View style={{ width: 140, height: 140 }} className="mb-4">
+        <View style={{ width: 90, height: 90, marginBottom: -10 }} className="z-10">
           <LottieView
             source={require('../../assets/lottie/Done.json')}
             autoPlay
             loop={false}
+            style={{ width: '100%', height: '100%' }}
+          />
+        </View>
+
+        {/* Mascot Cheering Lottie Animation */}
+        <View style={{ width: 155, height: 155, marginBottom: 12 }}>
+          <LottieView
+            source={require('../../assets/lottie/bbbf7156-1170-11ee-a909-976822febe92.json')}
+            autoPlay
+            loop
             style={{ width: '100%', height: '100%' }}
           />
         </View>
