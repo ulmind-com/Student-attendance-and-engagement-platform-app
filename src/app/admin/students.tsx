@@ -47,7 +47,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width, height } = Dimensions.get('window');
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://kids-attendance-production.up.railway.app';
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://student-attendance-and-engagement.onrender.com/api';
 
 function getUSATodayDateStr() {
   try {

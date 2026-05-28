@@ -18,6 +18,7 @@ import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MotiView, AnimatePresence } from 'moti';
 import { LinearGradient } from 'expo-linear-gradient';
+import LottieView from 'lottie-react-native';
 import Svg, { Path, Circle, Line, Text as SvgText, Defs, RadialGradient, Stop, Ellipse, Rect } from 'react-native-svg';
 import { ArrowLeft, ArrowRight, Heart, Sparkles, Smile, MessageCircle, ClipboardList, CheckCircle, Star, ThumbsUp, ThumbsDown } from 'lucide-react-native';
 
@@ -40,7 +41,7 @@ const Touchable = ({ children, style, onPress, className, disabled, ...props }: 
   );
 };
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://student-attendance-and-engagement.onrender.com/api';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // Mood mapping definitions
@@ -808,24 +809,14 @@ export default function WellnessScreen() {
                   className="flex-1 justify-center py-4 items-center w-full"
                 >
                   <View className="items-center justify-center py-8">
-                    {/* Glowing Purple Party Popper Badge */}
-                    <View
-                      style={{
-                        width: 80,
-                        height: 80,
-                        borderRadius: 40,
-                        backgroundColor: '#d946ef',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        shadowColor: '#d946ef',
-                        shadowOffset: { width: 0, height: 8 },
-                        shadowOpacity: 0.4,
-                        shadowRadius: 16,
-                        elevation: 8,
-                        marginBottom: 24
-                      }}
-                    >
-                      <Sparkles size={36} color="white" />
+                    {/* Mascot Cheering Lottie Animation */}
+                    <View style={{ width: 160, height: 160, marginBottom: 12 }}>
+                      <LottieView
+                        source={require('../../assets/lottie/bbbf7156-1170-11ee-a909-976822febe92.json')}
+                        autoPlay
+                        loop
+                        style={{ width: '100%', height: '100%' }}
+                      />
                     </View>
 
                     {/* All Done Header and Subtext */}

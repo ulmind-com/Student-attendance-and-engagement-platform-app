@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Tabs } from 'expo-router';
-import { View, Text, StyleSheet, Platform, Dimensions, TouchableOpacity } from 'react-native';
-import { LayoutDashboard, Users, CalendarCheck, Bell, Settings, Clock, Menu } from 'lucide-react-native';
+import { Tabs, useRouter } from 'expo-router';
+import { View, Text, StyleSheet, Platform, Dimensions, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { LayoutDashboard, Users, CalendarCheck, Bell, Settings, Clock, LogOut } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
@@ -16,8 +17,30 @@ function TabBarIcon({ focused, IconComponent, name }: { focused: boolean, IconCo
 }
 
 export default function AdminLayout() {
+  const router = useRouter();
   const [currentTime, setCurrentTime] = useState("");
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
+  // Auth Guard
+  useEffect(() => {
+    (async () => {
+      try {
+        const username = await AsyncStorage.getItem("adminUsername");
+        if (!username) {
+          setIsAuthenticated(false);
+          router.replace('/');
+        } else {
+          setIsAuthenticated(true);
+        }
+      } catch (err) {
+        console.error("Failed to fetch adminUsername:", err);
+        setIsAuthenticated(false);
+        router.replace('/');
+      }
+    })();
+  }, []);
+
+  // Clock Polling
   useEffect(() => {
     const updateClock = () => {
       const now = new Date();
@@ -29,12 +52,46 @@ export default function AdminLayout() {
     return () => clearInterval(interval);
   }, []);
 
+  const handleSignOut = () => {
+    Alert.alert(
+      "Sign Out",
+      "Are you sure you want to sign out from the Admin Dashboard?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Sign Out", 
+          style: "destructive",
+          onPress: async () => {
+            await AsyncStorage.removeItem("adminUsername");
+            await AsyncStorage.removeItem("adminRole");
+            router.replace('/');
+          }
+        }
+      ]
+    );
+  };
+
+  if (isAuthenticated === null) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
+        <ActivityIndicator size="large" color="#a855f7" />
+        <Text style={{ fontSize: 14, fontWeight: '800', color: '#a855f7', marginTop: 12 }}>
+          Securing connection...
+        </Text>
+      </View>
+    );
+  }
+
+  if (isAuthenticated === false) {
+    return null;
+  }
+
   return (
     <View style={{ flex: 1, backgroundColor: '#fff' }}>
       {/* Header matching screenshot */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.menuButton}>
-          <Menu size={20} color="#334155" />
+        <TouchableOpacity style={styles.menuButton} onPress={handleSignOut}>
+          <LogOut size={20} color="#ef4444" />
         </TouchableOpacity>
         
         <Text style={styles.headerTitle} numberOfLines={1}>Student Attanda...</Text>

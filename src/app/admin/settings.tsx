@@ -48,7 +48,7 @@ import {
 } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://kids-attendance-production.up.railway.app';
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://student-attendance-and-engagement.onrender.com/api';
 
 type SettingsTab = 
   | "school" 
