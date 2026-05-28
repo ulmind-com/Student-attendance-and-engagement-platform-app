@@ -301,6 +301,16 @@ export default function LoginScreen() {
   const [teacherPassword, setTeacherPassword] = useState("");
   const [loginError, setLoginError] = useState("");
 
+  const lastTapRef = useRef(0);
+  const handleSchoolDoubleTap = () => {
+    const now = Date.now();
+    const DOUBLE_PRESS_DELAY = 300;
+    if (now - lastTapRef.current < DOUBLE_PRESS_DELAY) {
+      setShowTeacherModal(true);
+    }
+    lastTapRef.current = now;
+  };
+
   useEffect(() => {
     (async () => {
       try {
@@ -478,12 +488,12 @@ export default function LoginScreen() {
             contentContainerClassName="flex-grow pt-4 pb-12 px-5"
             keyboardShouldPersistTaps="handled"
           >
-            {/* Top Navigation */}
-            <MotiView 
-              from={{ opacity: 0, translateX: -20 }} animate={{ opacity: 1, translateX: 0 }}
-              className="flex-row items-center mb-6 px-2"
-            >
-              <Touchable activeOpacity={0.9} onPress={() => setShowTeacherModal(true)} onLongPress={() => setShowTeacherModal(true)} delayLongPress={1000}>
+            {/* Top Navigation Bar with Secret Teacher Login Double Tap */}
+            <Touchable activeOpacity={0.9} onPress={handleSchoolDoubleTap}>
+              <MotiView 
+                from={{ opacity: 0, translateX: -20 }} animate={{ opacity: 1, translateX: 0 }}
+                className="flex-row items-center mb-6 px-2"
+              >
                 {schoolLogo ? (
                   <View className="w-10 h-10 rounded-xl bg-white shadow-sm border border-purple-100 overflow-hidden mr-3">
                     <Image source={{ uri: schoolLogo }} className="w-full h-full" resizeMode="contain" />
@@ -493,13 +503,13 @@ export default function LoginScreen() {
                     <Text className="text-white text-lg">✨</Text>
                   </View>
                 )}
-              </Touchable>
-              <View className="flex-1">
-                <Text className="font-black text-slate-800 text-sm leading-tight tracking-tight">
-                  {schoolName.split('\n').join(' ')} 💫
-                </Text>
-              </View>
-            </MotiView>
+                <View className="flex-1">
+                  <Text className="font-black text-slate-800 text-sm leading-tight tracking-tight">
+                    {schoolName.split('\n').join(' ')} 💫
+                  </Text>
+                </View>
+              </MotiView>
+            </Touchable>
 
             {/* Title */}
             <View className="items-center mb-6 z-20">
@@ -628,14 +638,7 @@ export default function LoginScreen() {
               </View>
             </View>
 
-            {/* Dedicated Teacher Login Button */}
-            <Touchable 
-              onPress={() => setShowTeacherModal(true)} 
-              className="mt-6 flex-row items-center justify-center gap-2 py-3"
-            >
-              <Lock size={14} color="#94a3b8" />
-              <Text className="text-slate-500 font-bold text-sm">Teacher / Admin Login</Text>
-            </Touchable>
+
 
           </ScrollView>
         </KeyboardAvoidingView>
