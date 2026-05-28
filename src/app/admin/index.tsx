@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'expo-router';
 import {
   View,
   Text,
@@ -428,6 +429,7 @@ const Touchable = ({ children, style, onPress, ...props }: any) => (
 );
 
 export default function AdminDashboard() {
+  const router = useRouter();
   const [students, setStudents] = useState<any[]>([]);
   const [classCount, setClassCount] = useState(0);
   const [teacherCount, setTeacherCount] = useState(0);
@@ -570,61 +572,55 @@ export default function AdminDashboard() {
   const greeting = getGreeting();
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#fcfcfc' }}>
-      <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 110 }}>
+    <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
+      <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 110 }} showsVerticalScrollIndicator={false}>
         
-        {/* Header matching Next.js design */}
+        {/* Modern Premium Greeting Section */}
         <MotiView
           from={{ opacity: 0, translateY: -15 }}
           animate={{ opacity: 1, translateY: 0 }}
-          style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}
+          style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}
         >
           <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={{ fontSize: 24, fontWeight: '900', color: '#1e293b', letterSpacing: -0.6 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={{ fontSize: 24, fontWeight: '900', color: '#0f172a', letterSpacing: -0.6 }}>
                 {greeting.text}, Teacher
               </Text>
-              <greeting.Icon size={24} color={greeting.color} />
+              <View style={{ backgroundColor: '#fffbeb', padding: 6, borderRadius: 12, borderWidth: 1, borderColor: '#fef3c7' }}>
+                <greeting.Icon size={18} color={greeting.color} />
+              </View>
             </View>
-            <Text style={{ fontSize: 13, fontWeight: '600', color: '#64748b', marginTop: 3 }}>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: '#64748b', marginTop: 4 }}>
               Here is the emotional wellness summary for today.
             </Text>
           </View>
+          {/* Custom Date Capsule */}
+          <View style={{ backgroundColor: '#fff', borderWidth: 1, borderColor: '#f1f5f9', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8, shadowColor: '#0f172a', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 4, elevation: 1 }}>
+            <Text style={{ fontSize: 10, fontWeight: '900', color: '#64748b', letterSpacing: 0.5 }}>{currentDate}</Text>
+          </View>
         </MotiView>
-
-        {/* Live Clock / Date Component */}
-        <View style={styles.dateTimeContainer}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Calendar size={13} color="#94a3b8" />
-            <Text style={{ fontSize: 11, fontWeight: '900', color: '#94a3b8', letterSpacing: 0.8 }}>{currentDate}</Text>
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
-            <Clock size={15} color="#1e293b" />
-            <Text style={{ fontSize: 21, fontWeight: '900', color: '#1e293b', fontVariant: ['tabular-nums'] }}>{currentTime}</Text>
-          </View>
-        </View>
 
         {/* Animated AI Insight banner */}
         <MotiView
           animate={{ scale: 1 }}
           transition={{ type: 'spring' } as any}
-          style={{ marginBottom: 18, overflow: 'hidden', borderRadius: 20 }}
+          style={{ marginBottom: 20, overflow: 'hidden', borderRadius: 24, shadowColor: '#6366f1', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 4 }}
         >
           <LinearGradient
             colors={aiInsights[activeInsight].colors as any}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
             style={styles.aiInsightContainer}
           >
             <View style={styles.aiIconWrapper}>
               {(() => {
                 const IconComponent = aiInsights[activeInsight].Icon;
-                return <IconComponent color="#fff" size={20} />;
+                return <IconComponent color="#fff" size={18} />;
               })()}
             </View>
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 }}>
-                <Bot color="#fff" size={13} style={{ opacity: 0.8 }} />
-                <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: '900', letterSpacing: 0.6 }}>
+                <Bot color="rgba(255,255,255,0.9)" size={13} />
+                <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 10, fontWeight: '900', letterSpacing: 0.8 }}>
                   AI INSIGHT
                 </Text>
               </View>
@@ -642,14 +638,14 @@ export default function AdminDashboard() {
                 </MotiView>
               </AnimatePresence>
             </View>
-            <View style={{ flexDirection: 'row', gap: 3.5 }}>
+            <View style={{ flexDirection: 'row', gap: 4 }}>
               {aiInsights.map((_, idx) => (
                 <View
                   key={idx}
                   style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: 3,
+                    width: 5,
+                    height: 5,
+                    borderRadius: 2.5,
                     backgroundColor: idx === activeInsight ? '#fff' : 'rgba(255,255,255,0.35)'
                   }}
                 />
@@ -663,12 +659,12 @@ export default function AdminDashboard() {
           
           {/* Card 1: Total Students */}
           <Touchable onPress={() => setActiveModal("total")} style={{ width: (SCREEN_WIDTH - 48) / 2 }}>
-            <LinearGradient colors={['#3b82f6', '#1d4ed8']} style={styles.statCard}>
+            <LinearGradient colors={['#4f46e5', '#3b82f6']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.statCard}>
               <View style={styles.statHeader}>
                 <View style={styles.statIconBadge}>
-                  <Users size={16} color="#fff" />
+                  <Users size={15} color="#fff" />
                 </View>
-                <ArrowRight size={12} color="rgba(255,255,255,0.7)" />
+                <ArrowRight size={11} color="rgba(255,255,255,0.8)" />
               </View>
               <Text style={styles.statValue}>{totalStudents}</Text>
               <Text style={styles.statTitle}>Total Students</Text>
@@ -678,12 +674,12 @@ export default function AdminDashboard() {
 
           {/* Card 2: Classes */}
           <Touchable onPress={() => setActiveModal("classes")} style={{ width: (SCREEN_WIDTH - 48) / 2 }}>
-            <LinearGradient colors={['#10b981', '#047857']} style={styles.statCard}>
+            <LinearGradient colors={['#059669', '#0d9488']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.statCard}>
               <View style={styles.statHeader}>
                 <View style={styles.statIconBadge}>
-                  <GraduationCap size={16} color="#fff" />
+                  <GraduationCap size={15} color="#fff" />
                 </View>
-                <ArrowRight size={12} color="rgba(255,255,255,0.7)" />
+                <ArrowRight size={11} color="rgba(255,255,255,0.8)" />
               </View>
               <Text style={styles.statValue}>{classCount || 4}</Text>
               <Text style={styles.statTitle}>Classes</Text>
@@ -693,12 +689,12 @@ export default function AdminDashboard() {
 
           {/* Card 3: Present */}
           <Touchable onPress={() => setActiveModal("present")} style={{ width: (SCREEN_WIDTH - 48) / 2 }}>
-            <LinearGradient colors={['#22c55e', '#15803d']} style={styles.statCard}>
+            <LinearGradient colors={['#7c3aed', '#ec4899']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.statCard}>
               <View style={styles.statHeader}>
                 <View style={styles.statIconBadge}>
-                  <CheckCircle2 size={16} color="#fff" />
+                  <CheckCircle2 size={15} color="#fff" />
                 </View>
-                <ArrowRight size={12} color="rgba(255,255,255,0.7)" />
+                <ArrowRight size={11} color="rgba(255,255,255,0.8)" />
               </View>
               <Text style={styles.statValue}>{checkedInToday}</Text>
               <Text style={styles.statTitle}>Present Today</Text>
@@ -708,12 +704,12 @@ export default function AdminDashboard() {
 
           {/* Card 4: Mood */}
           <Touchable onPress={() => setActiveModal("mood")} style={{ width: (SCREEN_WIDTH - 48) / 2 }}>
-            <LinearGradient colors={['#a855f7', '#7e22ce']} style={styles.statCard}>
+            <LinearGradient colors={['#f59e0b', '#ea580c']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.statCard}>
               <View style={styles.statHeader}>
                 <View style={styles.statIconBadge}>
-                  <SmilePlus size={16} color="#fff" />
+                  <SmilePlus size={15} color="#fff" />
                 </View>
-                <ArrowRight size={12} color="rgba(255,255,255,0.7)" />
+                <ArrowRight size={11} color="rgba(255,255,255,0.8)" />
               </View>
               <Text style={styles.statValue}>{avgMood}</Text>
               <Text style={styles.statTitle}>Avg Mood Score</Text>
@@ -724,26 +720,27 @@ export default function AdminDashboard() {
           {/* Card 5: Active Wellness Alerts */}
           <Touchable onPress={() => setActiveModal("wellness")} style={{ width: SCREEN_WIDTH - 36 }}>
             <LinearGradient
-              colors={riskCount > 0 ? ['#ef4444', '#b91c1c'] : ['#22c55e', '#15803d']}
-              style={[styles.statCard, { paddingVertical: 14 }]}
+              colors={riskCount > 0 ? ['#f43f5e', '#be123c'] : ['#10b981', '#047857']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={[styles.statCard, { paddingVertical: 16 }]}
             >
               <View style={styles.statHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <AlertTriangle size={15} color="#fff" />
-                  <Text style={{ color: '#fff', fontSize: 11, fontWeight: '900', letterSpacing: 0.5 }}>
+                  <AlertTriangle size={14} color="#fff" />
+                  <Text style={{ color: '#fff', fontSize: 10, fontWeight: '900', letterSpacing: 0.8 }}>
                     WELLNESS TRACKER
                   </Text>
                 </View>
-                <ArrowRight size={12} color="rgba(255,255,255,0.75)" />
+                <ArrowRight size={12} color="rgba(255,255,255,0.8)" />
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
                 <View>
-                  <Text style={styles.statValue}>{riskCount}</Text>
-                  <Text style={styles.statTitle}>Active Wellness Alerts</Text>
+                  <Text style={[styles.statValue, { fontSize: 28 }]}>{riskCount}</Text>
+                  <Text style={[styles.statTitle, { fontSize: 13, marginTop: 4 }]}>Active Wellness Alerts</Text>
                 </View>
                 <View style={{ backgroundColor: 'rgba(255,255,255,0.22)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 }}>
                   <Text style={{ color: '#fff', fontSize: 10, fontWeight: '900' }}>
-                    {riskCount > 0 ? "Needs Review ⚠️" : "All Healthy Shield"}
+                    {riskCount > 0 ? "Needs Review ⚠️" : "All Stable Shield 🛡️"}
                   </Text>
                 </View>
               </View>
@@ -933,11 +930,16 @@ export default function AdminDashboard() {
           <Text style={styles.sectionTitle}>Quick Actions</Text>
           <View style={{ gap: 8, marginTop: 12 }}>
             {[
-              { label: "View All Students", icon: Users, color: "text-purple-600 bg-purple-50", iconColor: "#9333ea" },
-              { label: "Attendance Center", icon: Calendar, color: "text-blue-600 bg-blue-50", iconColor: "#2563eb" },
-              { label: "Smart Alerts Tracker", icon: Bell, color: "text-red-600 bg-red-50", iconColor: "#ef4444" },
+              { label: "View All Students", icon: Users, color: "text-purple-600 bg-purple-50", iconColor: "#9333ea", path: "/admin/students" },
+              { label: "Attendance Center", icon: Calendar, color: "text-blue-600 bg-blue-50", iconColor: "#2563eb", path: "/admin/attendance" },
+              { label: "Smart Alerts Tracker", icon: Bell, color: "text-red-600 bg-red-50", iconColor: "#ef4444", path: "/admin/alerts" },
             ].map((action, i) => (
-              <View key={i} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: i < 2 ? 1 : 0, borderBottomColor: '#f1f5f9' }}>
+              <TouchableOpacity
+                key={i}
+                onPress={() => router.push(action.path as any)}
+                activeOpacity={0.7}
+                style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: i < 2 ? 1 : 0, borderBottomColor: '#f1f5f9' }}
+              >
                 <View style={[styles.avatarRound, { backgroundColor: action.iconColor + '10', width: 34, height: 34, borderRadius: 10 }]}>
                   <action.icon size={16} color={action.iconColor} />
                 </View>
@@ -945,7 +947,7 @@ export default function AdminDashboard() {
                   {action.label}
                 </Text>
                 <ArrowRight size={13} color="#94a3b8" />
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
         </View>
@@ -1149,33 +1151,34 @@ const styles = StyleSheet.create({
     marginRight: 12
   },
   statCard: {
-    borderRadius: 20,
-    padding: 14,
-    minHeight: 115,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3
+    borderRadius: 24,
+    padding: 16,
+    minHeight: 120,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 4
   },
   statHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12
+    marginBottom: 10
   },
   statIconBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center'
   },
   statValue: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '900',
-    color: '#fff'
+    color: '#fff',
+    letterSpacing: -0.5
   },
   statTitle: {
     fontSize: 12,

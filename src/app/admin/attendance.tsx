@@ -10,7 +10,8 @@ import {
   Image,
   StyleSheet,
   Pressable,
-  Platform
+  Platform,
+  Alert
 } from 'react-native';
 import {
   Search,
@@ -26,7 +27,8 @@ import {
   Bot,
   SlidersHorizontal,
   MoreVertical,
-  Users
+  Users,
+  Printer
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView } from 'moti';
@@ -207,6 +209,194 @@ export default function AttendanceScreen() {
     return list;
   }, [students, selectedDateStr]);
 
+  const handlePrint = () => {
+    if (Platform.OS === 'web') {
+      const printWindow = window.open('', '_blank', 'width=1000,height=800');
+      if (!printWindow) return;
+
+      const rowsHtml = filteredRoster.map(s => {
+        const sClass = s.checkedIn ? 'status-present' : 'status-absent';
+        const moodInfo = s.checkedIn && s.entry ? getMoodTextAndColor(s.entry.score) : null;
+        return `
+          <tr>
+            <td>
+              <div class="student-name">${s.firstName} ${s.lastInitial || ''}</div>
+              <div class="student-meta">Roll: ${s.rollNumber}</div>
+            </td>
+            <td>
+              <span class="status-tag ${sClass}">
+                ${s.checkedIn ? 'Present' : 'Absent'}
+              </span>
+            </td>
+            <td style="font-weight: bold;">
+              ${s.checkedIn && moodInfo ? `${moodInfo.emoji} ${moodInfo.label} (${s.entry.score}/10)` : '—'}
+            </td>
+            <td style="font-weight: bold; color: #475569;">
+              ${s.checkedIn && s.entry ? (s.entry.time || '9:00 AM') : '—'}
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      const emptyHtml = filteredRoster.length === 0 ? '<tr><td colspan="4" style="text-align:center; padding: 30px; font-weight:bold; color:#94a3b8;">No records found for this selection.</td></tr>' : '';
+
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Attendance Report - ${selectedDateStr}</title>
+            <style>
+              @page { size: letter portrait; margin: 0.5in; }
+              body { 
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+                padding: 0; 
+                margin: 0; 
+                color: #0f172a;
+              }
+              .container { padding: 20px; max-width: 100%; margin: 0 auto; }
+              .header { 
+                text-align: center; 
+                margin-bottom: 25px; 
+                padding-bottom: 15px; 
+                border-bottom: 2px solid #e2e8f0;
+              }
+              .header h2 { 
+                margin: 0 0 10px 0; 
+                font-size: 28px; 
+                font-weight: 900; 
+                text-transform: uppercase;
+                letter-spacing: 1px;
+              }
+              .header p { 
+                margin: 0; 
+                color: #64748b; 
+                font-size: 14px; 
+                font-weight: bold;
+              }
+              .stats-row {
+                display: flex;
+                gap: 15px;
+                margin-bottom: 25px;
+              }
+              .stat-box {
+                flex: 1;
+                background: #f8fafc;
+                border: 1px solid #e2e8f0;
+                padding: 12px;
+                border-radius: 8px;
+                text-align: center;
+              }
+              .stat-val { font-size: 20px; font-weight: 900; color: #0f172a; margin-top: 4px;}
+              .stat-lbl { font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; }
+              table { 
+                width: 100%; 
+                border-collapse: collapse; 
+                margin-top: 10px; 
+              }
+              th { 
+                background: #f8fafc; 
+                padding: 12px; 
+                text-align: left; 
+                font-size: 12px; 
+                text-transform: uppercase; 
+                font-weight: 900; 
+                color: #475569; 
+                border: 1px solid #cbd5e1; 
+              }
+              td { 
+                padding: 12px; 
+                border: 1px solid #e2e8f0; 
+                font-size: 14px; 
+              }
+              .student-name { font-weight: 800; color: #1e293b; font-size: 16px; margin-bottom: 4px; }
+              .student-meta { color: #64748b; font-size: 12px; font-weight: 600; }
+              .status-tag {
+                font-size: 11px;
+                font-weight: 800;
+                padding: 4px 10px;
+                border-radius: 20px;
+                text-transform: uppercase;
+                display: inline-block;
+              }
+              .status-present { background: #dcfce7; color: #166534; }
+              .status-absent { background: #fee2e2; color: #991b1b; }
+              .footer { 
+                margin-top: 40px; 
+                text-align: center; 
+                font-size: 12px; 
+                color: #94a3b8; 
+                border-top: 1px solid #e2e8f0; 
+                padding-top: 10px; 
+              }
+              .print-btn {
+                display: block;
+                width: 200px;
+                margin: 20px auto;
+                padding: 12px 24px;
+                background: #3b82f6;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-weight: bold;
+                cursor: pointer;
+              }
+              @media print {
+                .print-btn { display: none; }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <button class="print-btn" onclick="window.print()">🖨️ Print Document</button>
+              <div class="header">
+                <h2>Attendance Report</h2>
+                <p>Date: ${selectedDateStr} | Search query: ${searchQuery || 'None'}</p>
+              </div>
+              <div class="stats-row">
+                <div class="stat-box">
+                  <div class="stat-lbl">Present</div>
+                  <div class="stat-val">${overviewStats.present}</div>
+                </div>
+                <div class="stat-box">
+                  <div class="stat-lbl">Absent</div>
+                  <div class="stat-val">${overviewStats.absent}</div>
+                </div>
+                <div class="stat-box">
+                  <div class="stat-lbl">Avg Mood Rating</div>
+                  <div class="stat-val">${overviewStats.avgMood} / 10</div>
+                </div>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Student Info</th>
+                    <th>Status</th>
+                    <th>Mood & Engagement</th>
+                    <th>Check-in Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rowsHtml}
+                  ${emptyHtml}
+                </tbody>
+              </table>
+              <div class="footer">
+                Generated by Student Attendance and Engagement Platform &bull; ${new Date().toLocaleString()}
+              </div>
+            </div>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+      }, 500);
+    } else {
+      Alert.alert("Print PDF", "Print list generated! Please use the web dashboard to print/save this attendance report as a PDF.");
+    }
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: '#fcfcfc' }}>
       <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 110 }}>
@@ -224,12 +414,32 @@ export default function AttendanceScreen() {
             </Text>
           </View>
           
-          {/* Top date badge */}
-          <View style={styles.selectedDateBadge}>
-            <CalendarIcon size={13} color="#8b5cf6" />
-            <Text style={{ fontSize: 11, fontWeight: '900', color: '#8b5cf6' }}>
-              {selectedDateStr.replaceAll('-', '/')}
-            </Text>
+          {/* Top right buttons row */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={styles.selectedDateBadge}>
+              <CalendarIcon size={13} color="#8b5cf6" />
+              <Text style={{ fontSize: 11, fontWeight: '900', color: '#8b5cf6' }}>
+                {selectedDateStr.replaceAll('-', '/')}
+              </Text>
+            </View>
+            <TouchableOpacity 
+              onPress={handlePrint}
+              activeOpacity={0.7}
+              style={{ 
+                flexDirection: 'row', 
+                alignItems: 'center', 
+                gap: 4, 
+                backgroundColor: '#f1f5f9', 
+                paddingVertical: 6, 
+                paddingHorizontal: 10, 
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: '#e2e8f0'
+              }}
+            >
+              <Printer size={12} color="#475569" />
+              <Text style={{ fontSize: 11, fontWeight: '800', color: '#475569' }}>Print PDF</Text>
+            </TouchableOpacity>
           </View>
         </MotiView>
 

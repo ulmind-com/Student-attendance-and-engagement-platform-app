@@ -11,7 +11,8 @@ import {
   Alert,
   Dimensions,
   StyleSheet,
-  TouchableOpacity
+  TouchableOpacity,
+  Image
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -67,10 +68,22 @@ const EMOTIONS = [
   { id: 'Excited', label: 'Excited', emoji: '🤩', color: '#ec4899', glow: 'rgba(236, 72, 153, 0.3)' },
 ];
 
+function SandyLoadingVideo() {
+  return (
+    <LottieView
+      source={require('../../assets/lottie/Sandy Loading.json')}
+      autoPlay
+      loop
+      style={{ width: 280, height: 280 }}
+    />
+  );
+}
+
 export default function WellnessScreen() {
   const [studentRoll, setStudentRoll] = useState('');
   const [studentName, setStudentName] = useState('Student');
   const [studentClass, setStudentClass] = useState('');
+  const [studentPhoto, setStudentPhoto] = useState('');
   const [currentStep, setCurrentStep] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -131,8 +144,12 @@ export default function WellnessScreen() {
         const students = await studentRes.json();
         const found = students.find((s: any) => s.rollNumber === roll);
         if (found) {
-          setStudentName(`${found.firstName || found.name} ${found.lastInitial || ''}`.trim());
+          const nameVal = `${found.firstName || found.name || ''} ${found.lastInitial || ''}`.trim();
+          setStudentName(nameVal || 'Student');
           setStudentClass(found.class_name || found.class || '');
+          if (found.profilePhoto) {
+            setStudentPhoto(found.profilePhoto);
+          }
         }
       }
 
@@ -208,8 +225,12 @@ export default function WellnessScreen() {
 
       if (res.ok) {
         // Attendance successfully recorded
-        router.replace('/success' as any);
+        setTimeout(() => {
+          router.replace('/success' as any);
+          setIsSubmitting(false);
+        }, 1800);
       } else {
+        setIsSubmitting(false);
         const errorData = await res.json().catch(() => ({}));
         Alert.alert(
           'Check-in Failed',
@@ -223,9 +244,10 @@ export default function WellnessScreen() {
         'Offline/Network Error',
         'Attendance will be saved locally. Check with your teacher once online.'
       );
-      router.replace('/success' as any);
-    } finally {
-      setIsSubmitting(false);
+      setTimeout(() => {
+        router.replace('/success' as any);
+        setIsSubmitting(false);
+      }, 1800);
     }
   };
 
@@ -247,9 +269,24 @@ export default function WellnessScreen() {
 
   if (isLoading) {
     return (
-      <View className="flex-1 bg-white items-center justify-center">
-        <ActivityIndicator size="large" color="#8b5cf6" />
-        <Text className="text-slate-500 font-bold mt-4">Loading your check-in portal...</Text>
+      <View className="flex-1 bg-white items-center justify-center relative">
+        <LinearGradient
+          colors={['#ede9fe', '#fdf2f8', '#e0f2fe']}
+          style={{ position: 'absolute', width: '100%', height: '100%' }}
+        />
+        <View className="items-center justify-center px-6">
+          <SandyLoadingVideo />
+          <MotiView
+            from={{ opacity: 0.5, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1.02 }}
+            transition={{ loop: true, type: 'timing', duration: 1500, direction: 'alternate' as any }}
+            style={{ marginTop: 24 }}
+          >
+            <Text className="text-xl sm:text-2xl font-black text-center text-purple-600">
+              Loading your check-in portal... ✨
+            </Text>
+          </MotiView>
+        </View>
       </View>
     );
   }
@@ -278,9 +315,18 @@ export default function WellnessScreen() {
             <Touchable onPress={prevStep} disabled={currentStep === 0} className={`p-2 rounded-xl bg-white/60 ${currentStep === 0 ? 'opacity-30' : ''}`}>
               <ArrowLeft color="#6d28d9" size={20} />
             </Touchable>
-            <View className="items-center">
-              <Text className="text-[10px] font-black text-purple-600 uppercase tracking-widest">Daily Wellness Check-In</Text>
-              <Text className="text-sm font-black text-slate-800">Hi, {studentName} ✨</Text>
+            <View className="flex-row items-center justify-center gap-2.5">
+              {studentPhoto ? (
+                <Image
+                  source={{ uri: studentPhoto }}
+                  className="w-9 h-9 rounded-full border-2 border-purple-300 shadow-sm"
+                  style={{ width: 36, height: 36, borderRadius: 18 }}
+                />
+              ) : null}
+              <View className="items-start">
+                <Text className="text-[9px] font-black text-purple-600 uppercase tracking-widest">Daily Wellness Check-In</Text>
+                <Text className="text-sm font-black text-slate-800">Hi, {studentName} ✨</Text>
+              </View>
             </View>
             <View className="w-9" />
           </View>
@@ -880,6 +926,23 @@ export default function WellnessScreen() {
           )}
         </KeyboardAvoidingView>
       </SafeAreaView>
+      {isSubmitting && (
+        <View className="absolute inset-0 z-50 items-center justify-center bg-white/95">
+          <View className="items-center justify-center px-6">
+            <SandyLoadingVideo />
+            <MotiView
+              from={{ opacity: 0.5, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1.02 }}
+              transition={{ loop: true, type: 'timing', duration: 1500, direction: 'alternate' as any }}
+              style={{ marginTop: 24 }}
+            >
+              <Text className="text-xl sm:text-2xl font-black text-center text-purple-600">
+                Saving your check-in... ✨
+              </Text>
+            </MotiView>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
