@@ -88,16 +88,16 @@ export default function AdminLayout() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#fff' }}>
-      {/* Header matching screenshot */}
+      {/* Premium Navigation Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.menuButton} onPress={handleSignOut}>
-          <LogOut size={20} color="#ef4444" />
+          <LogOut size={16} color="#f43f5e" />
         </TouchableOpacity>
         
-        <Text style={styles.headerTitle} numberOfLines={1}>Student Attanda...</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>Student Attendance</Text>
         
         <View style={styles.clockContainer}>
-          <Clock size={12} color="#a855f7" />
+          <Clock size={11} color="#8b5cf6" />
           <Text style={styles.clockText}>{currentTime}</Text>
         </View>
       </View>
@@ -124,19 +124,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 50 : 40,
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 52 : 44,
     paddingBottom: 16,
     backgroundColor: '#fff',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 12,
+    elevation: 2,
     borderBottomWidth: 1,
-    borderBottomColor: '#f8fafc',
+    borderBottomColor: '#f1f5f9',
     zIndex: 10,
   },
   menuButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: '#f1f5f9',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#fff5f5',
+    borderWidth: 1,
+    borderColor: '#fee2e2',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -144,23 +151,26 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontWeight: '900',
-    color: '#9333ea',
+    color: '#0f172a',
     textAlign: 'center',
     marginHorizontal: 8,
+    letterSpacing: -0.3,
   },
   clockContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#faf5ff',
+    gap: 5,
+    backgroundColor: '#f5f3ff',
+    borderWidth: 1,
+    borderColor: '#ddd6fe',
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingVertical: 6,
+    borderRadius: 30,
   },
   clockText: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#a855f7',
+    color: '#7c3aed',
   },
   tabBar: {
     position: 'absolute',

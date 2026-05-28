@@ -12,7 +12,8 @@ import {
   StyleSheet, 
   Dimensions,
   Clipboard,
-  Modal
+  Modal,
+  Platform
 } from 'react-native';
 import { 
   Building2, 
@@ -30,7 +31,12 @@ import {
   RefreshCw,
   Plus,
   Trash2,
+  Edit2,
+  Check,
+  X,
+  ChevronDown,
   Lock,
+  Printer,
   Eye,
   EyeOff,
   AlertTriangle,
@@ -100,6 +106,22 @@ export default function SettingsScreen() {
   const [newClassName, setNewClassName] = useState("");
   const [newClassTeacher, setNewClassTeacher] = useState("");
   const [newClassSection, setNewClassSection] = useState("A");
+  const [newClassLimit, setNewClassLimit] = useState("30");
+
+  const [teachersList, setTeachersList] = useState<any[]>([]);
+  const [newTeacherName, setNewTeacherName] = useState("");
+  const [newTeacherSubject, setNewTeacherSubject] = useState("");
+
+  // Edit states for Class & Teacher
+  const [editingClassIndex, setEditingClassIndex] = useState<number | null>(null);
+  const [editClassData, setEditClassData] = useState({ name: "", section: "", teacher: "", limit: "30" });
+
+  const [editingTeacherIndex, setEditingTeacherIndex] = useState<number | null>(null);
+  const [editTeacherData, setEditTeacherData] = useState({ name: "", subject: "" });
+
+   const [activeRole, setActiveRole] = useState<string>("Teacher");
+   const [showTeacherSuggestions, setShowTeacherSuggestions] = useState(false);
+   const [showEditTeacherSuggestions, setShowEditTeacherSuggestions] = useState(false);
 
   // 4. OTP Settings Panel
   const [activeOtpSubTab, setActiveOtpSubTab] = useState<"manage" | "history">("manage");
@@ -107,6 +129,7 @@ export default function SettingsScreen() {
   const [otpHistory, setOtpHistory] = useState<any[]>([]);
   const [otpExpValue, setOtpExpValue] = useState(3);
   const [otpExpUnit, setOtpExpUnit] = useState("Months");
+  const [isExpUnitDropdownOpen, setIsExpUnitDropdownOpen] = useState(false);
   const [otpTimeRangeEnabled, setOtpTimeRangeEnabled] = useState(false);
   const [otpStartTime, setOtpStartTime] = useState("08:00");
   const [otpEndTime, setOtpEndTime] = useState("16:00");
@@ -198,7 +221,7 @@ export default function SettingsScreen() {
         fetch(`${API_URL}/settings/school?t=${timestamp}`),
         fetch(`${API_URL}/settings/colors?t=${timestamp}`),
         fetch(`${API_URL}/settings/classes?t=${timestamp}`),
-        fetch(`${API_URL}/otps/list?t=${timestamp}`),
+        fetch(`${API_URL}/students?t=${timestamp}`),
         fetch(`${API_URL}/otps/history?t=${timestamp}`),
         fetch(`${API_URL}/settings/otp-config?t=${timestamp}`),
         fetch(`${API_URL}/questions/list?t=${timestamp}`),
@@ -235,16 +258,28 @@ export default function SettingsScreen() {
         if (colors.puzzle_emotions) setPuzzleColors(colors.puzzle_emotions);
       }
 
-      // 3. Classes
+      // 3. Classes & Teachers
       if (clsRes.status === "fulfilled" && clsRes.value.ok) {
         const classData = await clsRes.value.json();
         const liveClasses = Array.isArray(classData) ? classData : (classData.classes || []);
+        const liveTeachers = Array.isArray(classData) ? [] : (classData.teachers || []);
         setClassesList(liveClasses);
+        setTeachersList(liveTeachers);
       }
 
-      // 4. OTP List
       if (otpsRes.status === "fulfilled" && otpsRes.value.ok) {
-        setStudentsList(await otpsRes.value.json());
+        const rawStudents = await otpsRes.value.json();
+        const normalizedStudents = Array.isArray(rawStudents) ? rawStudents.map((s: any) => ({
+          ...s,
+          name: s.name || s.student_name || s.studentName || (s.firstName ? `${s.firstName} ${s.lastName || s.lastInitial || ''}`.trim() : (s.first_name ? `${s.first_name} ${s.last_name || ''}`.trim() : '')),
+          roll_number: s.roll_number || s.rollNumber || s.roll || "",
+          rollNumber: s.rollNumber || s.roll_number || s.roll || "",
+          class_name: s.class_name || s.className || s.class || "",
+          className: s.className || s.class_name || s.class || "",
+          section_name: s.section_name || s.section || "",
+          section: s.section || s.section_name || ""
+        })) : [];
+        setStudentsList(normalizedStudents);
       }
       
       // 4b. OTP History
@@ -490,29 +525,54 @@ export default function SettingsScreen() {
     }
   };
 
-  // --- CLASS ACTIONS ---
-  const handleAddClass = async () => {
-    if (!newClassName || !newClassTeacher) {
-      Alert.alert("Missing Fields", "Class Name and Assigned Teacher are required.");
-      return;
-    }
+  // --- CLASSES & TEACHERS ACTIONS ---
+  const saveClassesAndTeachersToServer = async (newClasses: any[], newTeachers: any[]) => {
     setIsSaving(true);
-    const updated = [...classesList, { name: newClassName, teacher: newClassTeacher, section: newClassSection, students_count: 0, max_students: 30 }];
-    setClassesList(updated);
-    setNewClassName("");
-    setNewClassTeacher("");
     try {
-      await fetch(`${API_URL}/settings/classes`, {
+      const res = await fetch(`${API_URL}/settings/classes`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ classes: updated })
+        body: JSON.stringify({ classes: newClasses, teachers: newTeachers })
       });
-      Alert.alert("Success", "New Classroom created successfully!");
-    } catch(e) {
-      Alert.alert("Error", "Network issue creating Classroom.");
+      if (!res.ok) {
+        // Try fallback to POST just in case backend expects POST
+        await fetch(`${API_URL}/settings/classes`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ classes: newClasses, teachers: newTeachers })
+        });
+      }
+    } catch (e) {
+      console.error("Failed to sync classes & teachers:", e);
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleAddClass = async () => {
+    if (!newClassName || !newClassSection) {
+      Alert.alert("Missing Fields", "Class Name and Section are required.");
+      return;
+    }
+    const limitNum = parseInt(newClassLimit, 10) || 30;
+    const newClassItem = {
+      id: Date.now(),
+      name: newClassName,
+      section: newClassSection,
+      teacher: newClassTeacher || "Unassigned",
+      students: 0,
+      limit: limitNum,
+      students_count: 0,
+      max_students: limitNum
+    };
+    const updatedClasses = [...classesList, newClassItem];
+    setClassesList(updatedClasses);
+    setNewClassName("");
+    setNewClassSection("A");
+    setNewClassTeacher("");
+    setNewClassLimit("30");
+    await saveClassesAndTeachersToServer(updatedClasses, teachersList);
+    Alert.alert("Success", "Classroom created successfully! 📁");
   };
 
   const handleDeleteClass = async (index: number) => {
@@ -522,20 +582,106 @@ export default function SettingsScreen() {
         text: "Remove",
         style: "destructive",
         onPress: async () => {
-          setIsSaving(true);
-          const updated = classesList.filter((_, i) => i !== index);
-          setClassesList(updated);
-          try {
-            await fetch(`${API_URL}/settings/classes`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ classes: updated })
-            });
-          } catch(e) {}
-          setIsSaving(false);
+          const updatedClasses = classesList.filter((_, i) => i !== index);
+          setClassesList(updatedClasses);
+          await saveClassesAndTeachersToServer(updatedClasses, teachersList);
         }
       }
     ]);
+  };
+
+  const handleStartEditClass = (index: number) => {
+    const cls = classesList[index];
+    setEditingClassIndex(index);
+    setEditClassData({
+      name: cls.name || "",
+      section: cls.section || "",
+      teacher: cls.teacher || "",
+      limit: String(cls.limit || cls.max_students || "30")
+    });
+  };
+
+  const handleSaveEditClass = async () => {
+    if (editingClassIndex === null) return;
+    const limitNum = parseInt(editClassData.limit, 10) || 30;
+    const updatedClasses = classesList.map((cls, idx) => {
+      if (idx === editingClassIndex) {
+        return {
+          ...cls,
+          name: editClassData.name,
+          section: editClassData.section,
+          teacher: editClassData.teacher,
+          limit: limitNum,
+          max_students: limitNum
+        };
+      }
+      return cls;
+    });
+    setClassesList(updatedClasses);
+    setEditingClassIndex(null);
+    await saveClassesAndTeachersToServer(updatedClasses, teachersList);
+    Alert.alert("Success", "Classroom updated successfully!");
+  };
+
+  const handleAddTeacher = async () => {
+    if (!newTeacherName) {
+      Alert.alert("Missing Fields", "Teacher Name is required.");
+      return;
+    }
+    const newTeacherItem = {
+      id: Date.now(),
+      name: newTeacherName,
+      subject: newTeacherSubject || "Class Teacher",
+      classes: []
+    };
+    const updatedTeachers = [...teachersList, newTeacherItem];
+    setTeachersList(updatedTeachers);
+    setNewTeacherName("");
+    setNewTeacherSubject("");
+    await saveClassesAndTeachersToServer(classesList, updatedTeachers);
+    Alert.alert("Success", "Teacher profile added successfully! 👩‍🏫");
+  };
+
+  const handleDeleteTeacher = async (index: number) => {
+    Alert.alert("Remove Teacher", "Are you sure you want to remove this teacher?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: async () => {
+          const updatedTeachers = teachersList.filter((_, i) => i !== index);
+          setTeachersList(updatedTeachers);
+          await saveClassesAndTeachersToServer(classesList, updatedTeachers);
+        }
+      }
+    ]);
+  };
+
+  const handleStartEditTeacher = (index: number) => {
+    const t = teachersList[index];
+    setEditingTeacherIndex(index);
+    setEditTeacherData({
+      name: t.name || "",
+      subject: t.subject || ""
+    });
+  };
+
+  const handleSaveEditTeacher = async () => {
+    if (editingTeacherIndex === null) return;
+    const updatedTeachers = teachersList.map((t, idx) => {
+      if (idx === editingTeacherIndex) {
+        return {
+          ...t,
+          name: editTeacherData.name,
+          subject: editTeacherData.subject
+        };
+      }
+      return t;
+    });
+    setTeachersList(updatedTeachers);
+    setEditingTeacherIndex(null);
+    await saveClassesAndTeachersToServer(classesList, updatedTeachers);
+    Alert.alert("Success", "Teacher profile updated successfully!");
   };
 
   // --- OTP ACTIONS ---
@@ -883,11 +1029,142 @@ export default function SettingsScreen() {
   const filteredStudents = studentsList.filter(s => {
     const classMatch = selectedOtpClass === "All" || s.class_name === selectedOtpClass;
     const secMatch = selectedOtpSection === "All" || s.section_name === selectedOtpSection;
+    const nameStr = s.name || "";
+    const rollStr = s.roll_number || "";
     const searchMatch = !otpSearchQuery || 
-      s.name.toLowerCase().includes(otpSearchQuery.toLowerCase()) || 
-      s.roll_number.toLowerCase().includes(otpSearchQuery.toLowerCase());
+      nameStr.toLowerCase().includes(otpSearchQuery.toLowerCase()) || 
+      rollStr.toLowerCase().includes(otpSearchQuery.toLowerCase());
     return classMatch && secMatch && searchMatch;
   });
+
+  const handlePrint = () => {
+    if (Platform.OS === 'web') {
+      const printWindow = window.open('', '_blank', 'width=1000,height=800');
+      if (!printWindow) return;
+
+      const html = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Student OTP List</title>
+            <style>
+              @page { size: letter portrait; margin: 0.5in; }
+              body { 
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+                padding: 0; 
+                margin: 0; 
+                color: #0f172a;
+              }
+              .container { padding: 20px; max-width: 100%; margin: 0 auto; }
+              .header { 
+                text-align: center; 
+                margin-bottom: 30px; 
+                padding-bottom: 15px; 
+                border-bottom: 2px solid #e2e8f0;
+              }
+              .header h2 { 
+                margin: 0 0 10px 0; 
+                font-size: 28px; 
+                font-weight: 900; 
+                text-transform: uppercase;
+                letter-spacing: 1px;
+              }
+              .header p { 
+                margin: 0; 
+                color: #64748b; 
+                font-size: 14px; 
+                font-weight: 600; 
+              }
+              table { 
+                width: 100%; 
+                border-collapse: collapse; 
+              }
+              th, td { 
+                padding: 14px 16px; 
+                border-bottom: 1px solid #cbd5e1; 
+                text-align: left; 
+              }
+              th { 
+                background-color: #f8fafc; 
+                font-weight: 800; 
+                text-transform: uppercase; 
+                font-size: 12px; 
+                color: #64748b;
+                border-bottom: 2px solid #cbd5e1;
+              }
+              tr:nth-child(even) { background-color: #f8fafc; }
+              .name-cell { font-weight: 700; font-size: 15px; }
+              .meta-cell { font-size: 13px; color: #475569; }
+              .otp-code { 
+                font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; 
+                font-size: 18px; 
+                font-weight: 900; 
+                letter-spacing: 3px; 
+                color: #ea580c; 
+                background-color: #fff7ed;
+                padding: 4px 12px;
+                border-radius: 6px;
+                border: 1px solid #ffedd5;
+                display: inline-block;
+              }
+              .status-tag {
+                font-size: 11px;
+                font-weight: 800;
+                padding: 4px 10px;
+                border-radius: 20px;
+                text-transform: uppercase;
+              }
+              .status-active { background: #dcfce7; color: #166534; }
+              .status-used { background: #f1f5f9; color: #64748b; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h2>Student Magic Codes</h2>
+                <p>Class: ${selectedOtpClass} | Section: ${selectedOtpSection} &bull; Generated: ${new Date().toLocaleDateString()}</p>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Student Name</th>
+                    <th>Roll No</th>
+                    <th>Class & Section</th>
+                    <th>Magic Code</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${filteredStudents.map(s => `
+                    <tr>
+                      <td class="name-cell">${s.name}</td>
+                      <td class="meta-cell">${s.roll_number}</td>
+                      <td class="meta-cell">${s.class_name || 'N/A'}</td>
+                      <td><span class="otp-code">${s.otp ? (typeof s.otp === 'object' ? s.otp.code : s.otp) : "----"}</span></td>
+                      <td>
+                        <span class="status-tag status-active">
+                          Active
+                        </span>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </body>
+        </html>
+      `;
+
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+      }, 500);
+    } else {
+      Alert.alert("Print PDF", "Print list generated! Please use the web dashboard to print/save this student roster as a PDF.");
+    }
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: '#fafafa' }}>
@@ -1152,7 +1429,7 @@ export default function SettingsScreen() {
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                             <View style={[styles.colorPreviewBlockSquare, { backgroundColor: clockColors[item.num] }]} />
                             <TextInput 
-                              value={clockColors[item.num]}
+                              value={clockColors[item.num] || ""}
                               onChangeText={(val) => setClockColors(prev => ({ ...prev, [item.num]: val }))}
                               style={styles.brandingColorInput}
                             />
@@ -1189,7 +1466,7 @@ export default function SettingsScreen() {
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                             <View style={[styles.colorPreviewBlockSquare, { backgroundColor: puzzleColors[item.name] }]} />
                             <TextInput 
-                              value={puzzleColors[item.name]}
+                              value={puzzleColors[item.name] || ""}
                               onChangeText={(val) => setPuzzleColors(prev => ({ ...prev, [item.name]: val }))}
                               style={styles.brandingColorInput}
                             />
@@ -1209,101 +1486,494 @@ export default function SettingsScreen() {
 
             {/* --- PANEL 3: CLASSES & USERS --- */}
             {activeTab === "classes" && (
-              <View style={{ gap: 20 }}>
+              <View style={{ gap: 24, paddingBottom: 40 }}>
+                {/* Header Section */}
                 <View style={{ borderBottomWidth: 1.5, borderBottomColor: '#f1f5f9', paddingBottom: 12 }}>
-                  <Text style={{ fontSize: 18, fontWeight: '900', color: '#1e293b' }}>Classes & Roster</Text>
-                  <Text style={{ fontSize: 11, fontWeight: '600', color: '#64748b', marginTop: 2 }}>
-                    Manage classroom rooms, assigned teachers, and student capacities.
+                  <Text style={{ fontSize: 20, fontWeight: '900', color: '#0f172a' }}>Classes & Users</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: '#64748b', marginTop: 2 }}>
+                    Manage classroom rooms, teachers, and user role permissions.
                   </Text>
                 </View>
 
-                {/* Scorecards */}
+                {/* Scorecards Row */}
                 <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <View style={[styles.scoreBadgeBox, { backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }]}>
-                    <Text style={[styles.scoreBadgeCount, { color: '#059669' }]}>{classesList.length}</Text>
-                    <Text style={[styles.scoreBadgeLabel, { color: '#047857' }]}>CLASSES</Text>
+                  <View style={{
+                    flex: 1,
+                    backgroundColor: '#ecfdf5',
+                    borderColor: '#a7f3d0',
+                    borderWidth: 1,
+                    borderRadius: 16,
+                    paddingVertical: 14,
+                    alignItems: 'center',
+                    shadowColor: '#10b981',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.05,
+                    shadowRadius: 8,
+                    elevation: 1
+                  }}>
+                    <Text style={{ fontSize: 22, fontWeight: '900', color: '#059669' }}>{classesList.length}</Text>
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#047857', letterSpacing: 0.5, marginTop: 2 }}>TOTAL CLASSES</Text>
                   </View>
 
-                  <View style={[styles.scoreBadgeBox, { backgroundColor: '#eff6ff', borderColor: '#bfdbfe' }]}>
-                    <Text style={[styles.scoreBadgeCount, { color: '#2563eb' }]}>
-                      {new Set(classesList.map(c => c.teacher).filter(Boolean)).size}
-                    </Text>
-                    <Text style={[styles.scoreBadgeLabel, { color: '#1d4ed8' }]}>TEACHERS</Text>
+                  <View style={{
+                    flex: 1,
+                    backgroundColor: '#eff6ff',
+                    borderColor: '#bfdbfe',
+                    borderWidth: 1,
+                    borderRadius: 16,
+                    paddingVertical: 14,
+                    alignItems: 'center',
+                    shadowColor: '#3b82f6',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.05,
+                    shadowRadius: 8,
+                    elevation: 1
+                  }}>
+                    <Text style={{ fontSize: 22, fontWeight: '900', color: '#2563eb' }}>{teachersList.length}</Text>
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#1d4ed8', letterSpacing: 0.5, marginTop: 2 }}>TEACHERS</Text>
                   </View>
 
-                  <View style={[styles.scoreBadgeBox, { backgroundColor: '#fdf2f8', borderColor: '#fbcfe8' }]}>
-                    <Text style={[styles.scoreBadgeCount, { color: '#db2777' }]}>
-                      {classesList.reduce((sum, c) => sum + (c.students_count || 0), 0)}
+                  <View style={{
+                    flex: 1,
+                    backgroundColor: '#faf5ff',
+                    borderColor: '#e9d5ff',
+                    borderWidth: 1,
+                    borderRadius: 16,
+                    paddingVertical: 14,
+                    alignItems: 'center',
+                    shadowColor: '#a855f7',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.05,
+                    shadowRadius: 8,
+                    elevation: 1
+                  }}>
+                    <Text style={{ fontSize: 22, fontWeight: '900', color: '#7c3aed' }}>
+                      {studentsList.length}
                     </Text>
-                    <Text style={[styles.scoreBadgeLabel, { color: '#be185d' }]}>STUDENTS</Text>
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#6d28d9', letterSpacing: 0.5, marginTop: 2 }}>TOTAL STUDENTS</Text>
                   </View>
                 </View>
 
-                {/* Class List */}
-                <View style={styles.sectionInnerCard}>
-                  <Text style={styles.sectionInnerTitle}>📁 Class Management</Text>
-                  <View style={{ gap: 10 }}>
-                    {classesList.map((cls, i) => (
-                      <View key={i} style={styles.classItemRow}>
-                        <View style={styles.classIconPill}>
-                          <GraduationCap size={16} color="#059669" />
-                        </View>
-                        
-                        <View style={{ flex: 1 }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <Text style={{ fontSize: 14, fontWeight: '900', color: '#1e293b' }}>{cls.name}</Text>
-                            <View style={{ backgroundColor: '#d1fae5', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
-                              <Text style={{ color: '#065f46', fontSize: 9, fontWeight: '900' }}>{cls.section || 'A'}</Text>
-                            </View>
-                          </View>
-                          <Text style={{ fontSize: 11, fontWeight: '600', color: '#64748b', marginTop: 1 }}>
-                            👤 {cls.teacher || 'Unassigned'}
-                          </Text>
-                        </View>
-
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                          <Users size={12} color="#64748b" />
-                          <Text style={{ fontSize: 12, fontWeight: '800', color: '#334155' }}>
-                            {cls.students_count || 0}/{cls.max_students || 30}
-                          </Text>
-                          <TouchableOpacity onPress={() => handleDeleteClass(i)}>
-                            <Trash2 size={15} color="#ef4444" style={{ marginLeft: 6 }} />
-                          </TouchableOpacity>
-                        </View>
+                {/* 1. Class Management Card */}
+                <View style={{ backgroundColor: '#ffffff', borderRadius: 24, borderWidth: 1, borderColor: '#e2e8f0', padding: 18, shadowColor: '#0f172a', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 16, elevation: 1 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <View style={{ backgroundColor: '#e6f4ea', padding: 6, borderRadius: 10 }}>
+                        <GraduationCap size={18} color="#137333" />
                       </View>
+                      <Text style={{ fontSize: 16, fontWeight: '900', color: '#0f172a' }}>Class Management</Text>
+                    </View>
+                    <View style={{ backgroundColor: '#f1f5f9', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, marginLeft: 'auto' }}>
+                      <Text style={{ fontSize: 11, fontWeight: '800', color: '#475569' }}>{classesList.length} classes</Text>
+                    </View>
+                  </View>
+
+                  {/* List of classes */}
+                  <View style={{ gap: 10, marginBottom: 18 }}>
+                    {classesList.map((cls, idx) => {
+                      const isEditing = editingClassIndex === idx;
+                      return (
+                        <View key={cls.id || idx} style={{ backgroundColor: '#f8fafc', borderRadius: 16, borderWidth: 1, borderColor: isEditing ? '#10b981' : '#f1f5f9', padding: 12 }}>
+                          {isEditing ? (
+                            <View style={{ gap: 10 }}>
+                              <View style={{ flexDirection: 'row', gap: 8 }}>
+                                <TextInput 
+                                  value={editClassData.name} 
+                                  onChangeText={(v) => setEditClassData(d => ({ ...d, name: v }))} 
+                                  placeholder="Class (e.g. KG)" 
+                                  style={{ flex: 2, backgroundColor: '#fff', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 13, color: '#334155' }} 
+                                />
+                                <TextInput 
+                                  value={editClassData.section} 
+                                  onChangeText={(v) => setEditClassData(d => ({ ...d, section: v }))} 
+                                  placeholder="Section" 
+                                  style={{ flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 13, color: '#334155' }} 
+                                />
+                              </View>
+                              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', zIndex: 50 }}>
+                                <View style={{ flex: 2, position: 'relative' }}>
+                                  <TextInput 
+                                    value={editClassData.teacher} 
+                                    onChangeText={(v) => {
+                                      setEditClassData(d => ({ ...d, teacher: v }));
+                                      setShowEditTeacherSuggestions(true);
+                                    }} 
+                                    onFocus={() => setShowEditTeacherSuggestions(true)}
+                                    placeholder="Assigned Teacher" 
+                                    style={{ backgroundColor: '#fff', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 13, color: '#334155' }} 
+                                  />
+                                  {showEditTeacherSuggestions && (
+                                    <View style={{
+                                      position: 'absolute',
+                                      top: 36,
+                                      left: 0,
+                                      right: 0,
+                                      backgroundColor: '#ffffff',
+                                      borderWidth: 1,
+                                      borderColor: '#e2e8f0',
+                                      borderRadius: 8,
+                                      shadowColor: '#000',
+                                      shadowOffset: { width: 0, height: 4 },
+                                      shadowOpacity: 0.1,
+                                      shadowRadius: 8,
+                                      elevation: 5,
+                                      maxHeight: 120,
+                                      zIndex: 9999
+                                    }}>
+                                      <ScrollView keyboardShouldPersistTaps="handled">
+                                        {teachersList
+                                          .filter(t => t.name.toLowerCase().includes((editClassData.teacher || '').toLowerCase()))
+                                          .map(t => (
+                                            <TouchableOpacity 
+                                              key={t.id} 
+                                              onPress={() => {
+                                                setEditClassData(d => ({ ...d, teacher: t.name }));
+                                                setShowEditTeacherSuggestions(false);
+                                              }}
+                                              style={{
+                                                paddingHorizontal: 10,
+                                                paddingVertical: 8,
+                                                borderBottomWidth: 1,
+                                                borderBottomColor: '#f1f5f9',
+                                                flexDirection: 'row',
+                                                alignItems: 'center',
+                                                gap: 6
+                                              }}
+                                            >
+                                              <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: '#2563eb', alignItems: 'center', justifyContent: 'center' }}>
+                                                <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>{(t.name || 'T')[0].toUpperCase()}</Text>
+                                              </View>
+                                              <Text style={{ fontSize: 12, fontWeight: '700', color: '#334155' }}>{t.name}</Text>
+                                            </TouchableOpacity>
+                                          ))}
+                                      </ScrollView>
+                                    </View>
+                                  )}
+                                </View>
+                                <TextInput 
+                                  value={editClassData.limit} 
+                                  onChangeText={(v) => setEditClassData(d => ({ ...d, limit: v }))} 
+                                  placeholder="Limit" 
+                                  keyboardType="numeric"
+                                  style={{ flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 13, color: '#334155' }} 
+                                />
+                              </View>
+                              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
+                                <TouchableOpacity onPress={() => setEditingClassIndex(null)} style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#e2e8f0', borderRadius: 8 }}>
+                                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#475569' }}>Cancel</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={handleSaveEditClass} style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#10b981', borderRadius: 8 }}>
+                                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#fff' }}>Save</Text>
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          ) : (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                                <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#e6f4ea', alignItems: 'center', justifyContent: 'center' }}>
+                                  <GraduationCap size={16} color="#137333" />
+                                </View>
+                                <View>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                    <Text style={{ fontSize: 14, fontWeight: '800', color: '#1e293b' }}>{cls.name}</Text>
+                                    {cls.section && (
+                                      <View style={{ backgroundColor: '#d1fae5', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
+                                        <Text style={{ color: '#065f46', fontSize: 9, fontWeight: '800' }}>{cls.section}</Text>
+                                      </View>
+                                    )}
+                                  </View>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
+                                    <Text style={{ fontSize: 11, fontWeight: '600', color: '#64748b' }}>👩‍🏫 {cls.teacher || 'Unassigned'}</Text>
+                                    <Text style={{ fontSize: 11, color: '#cbd5e1' }}>•</Text>
+                                    <Text style={{ fontSize: 11, fontWeight: '600', color: '#64748b' }}>
+                                      👤 {studentsList.filter(s => (s.class_name || s.className || '').toLowerCase() === cls.name.toLowerCase() && (s.section_name || s.section || '').toLowerCase() === (cls.section || '').toLowerCase()).length}/{cls.max_students || cls.limit || 30}
+                                    </Text>
+                                  </View>
+                                </View>
+                              </View>
+                              <View style={{ flexDirection: 'row', gap: 8 }}>
+                                <TouchableOpacity onPress={() => handleStartEditClass(idx)} style={{ padding: 6, backgroundColor: '#eff6ff', borderRadius: 8 }}>
+                                  <Edit2 size={13} color="#2563eb" />
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => handleDeleteClass(idx)} style={{ padding: 6, backgroundColor: '#fef2f2', borderRadius: 8 }}>
+                                  <Trash2 size={13} color="#ef4444" />
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })}
+                  </View>
+
+                  {/* Add Class Form Container */}
+                  <View style={{ backgroundColor: '#f0fdf4', borderColor: '#dcfce7', borderWidth: 1, borderRadius: 16, padding: 14 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '900', color: '#166534', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>+ Add New Class</Text>
+                    <View style={{ gap: 8 }}>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TextInput 
+                          placeholder="Class name (e.g. Nursery)" 
+                          value={newClassName}
+                          onChangeText={setNewClassName}
+                          placeholderTextColor="#a3a3a3"
+                          style={{ flex: 2, backgroundColor: '#fff', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, color: '#334155' }}
+                        />
+                        <TextInput 
+                          placeholder="Section (e.g. A)" 
+                          value={newClassSection}
+                          onChangeText={setNewClassSection}
+                          placeholderTextColor="#a3a3a3"
+                          style={{ flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, color: '#334155' }}
+                        />
+                      </View>
+                      <View style={{ flexDirection: 'row', gap: 8, zIndex: 60 }}>
+                        <View style={{ flex: 2, position: 'relative' }}>
+                          <TextInput 
+                            placeholder="Assign Teacher Name" 
+                            value={newClassTeacher}
+                            onChangeText={(text) => {
+                              setNewClassTeacher(text);
+                              setShowTeacherSuggestions(true);
+                            }}
+                            onFocus={() => setShowTeacherSuggestions(true)}
+                            placeholderTextColor="#a3a3a3"
+                            style={{ backgroundColor: '#fff', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, color: '#334155' }}
+                          />
+                          {showTeacherSuggestions && (
+                            <View style={{
+                              position: 'absolute',
+                              top: 42,
+                              left: 0,
+                              right: 0,
+                              backgroundColor: '#ffffff',
+                              borderWidth: 1,
+                              borderColor: '#e2e8f0',
+                              borderRadius: 10,
+                              shadowColor: '#000',
+                              shadowOffset: { width: 0, height: 4 },
+                              shadowOpacity: 0.1,
+                              shadowRadius: 12,
+                              elevation: 5,
+                              maxHeight: 150,
+                              zIndex: 9999
+                            }}>
+                              <ScrollView keyboardShouldPersistTaps="handled">
+                                {teachersList
+                                  .filter(t => t.name.toLowerCase().includes(newClassTeacher.toLowerCase()))
+                                  .map(t => (
+                                    <TouchableOpacity 
+                                      key={t.id || t.name} 
+                                      onPress={() => {
+                                        setNewClassTeacher(t.name);
+                                        setShowTeacherSuggestions(false);
+                                      }}
+                                      style={{
+                                        paddingHorizontal: 12,
+                                        paddingVertical: 10,
+                                        borderBottomWidth: 1,
+                                        borderBottomColor: '#f1f5f9',
+                                        flexDirection: 'row',
+                                        alignItems: 'center',
+                                        gap: 8
+                                      }}
+                                    >
+                                      <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: '#2563eb', alignItems: 'center', justifyContent: 'center' }}>
+                                        <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800' }}>{(t.name || 'T')[0].toUpperCase()}</Text>
+                                      </View>
+                                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#334155' }}>{t.name}</Text>
+                                    </TouchableOpacity>
+                                  ))}
+                                {teachersList.filter(t => t.name.toLowerCase().includes(newClassTeacher.toLowerCase())).length === 0 && (
+                                  <View style={{ padding: 12, alignItems: 'center' }}>
+                                    <Text style={{ fontSize: 12, color: '#94a3b8', fontWeight: '600' }}>No matching teachers</Text>
+                                  </View>
+                                )}
+                              </ScrollView>
+                            </View>
+                          )}
+                        </View>
+                        <TextInput 
+                          placeholder="Limit" 
+                          value={newClassLimit}
+                          onChangeText={setNewClassLimit}
+                          placeholderTextColor="#a3a3a3"
+                          keyboardType="numeric"
+                          style={{ flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, color: '#334155' }}
+                        />
+                      </View>
+
+                      <TouchableOpacity onPress={handleAddClass} style={{ backgroundColor: '#166534', paddingVertical: 10, borderRadius: 10, alignItems: 'center', marginTop: 4 }}>
+                        <Text style={{ color: '#fff', fontWeight: '900', fontSize: 13 }}>Create Classroom</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+
+                {/* 2. Teacher Management Card */}
+                <View style={{ backgroundColor: '#ffffff', borderRadius: 24, borderWidth: 1, borderColor: '#e2e8f0', padding: 18, shadowColor: '#0f172a', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 16, elevation: 1 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <View style={{ backgroundColor: '#eff6ff', padding: 6, borderRadius: 10 }}>
+                        <Users size={18} color="#1a73e8" />
+                      </View>
+                      <Text style={{ fontSize: 16, fontWeight: '900', color: '#0f172a' }}>Teacher Management</Text>
+                    </View>
+                    <View style={{ backgroundColor: '#f1f5f9', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, marginLeft: 'auto' }}>
+                      <Text style={{ fontSize: 11, fontWeight: '800', color: '#475569' }}>{teachersList.length} teachers</Text>
+                    </View>
+                  </View>
+
+                  {/* List of teachers */}
+                  <View style={{ gap: 10, marginBottom: 18 }}>
+                    {teachersList.map((t, idx) => {
+                      const isEditing = editingTeacherIndex === idx;
+                      const initial = (t.name || 'T')[0].toUpperCase();
+                      return (
+                        <View key={t.id || idx} style={{ backgroundColor: '#f8fafc', borderRadius: 16, borderWidth: 1, borderColor: isEditing ? '#2563eb' : '#f1f5f9', padding: 12 }}>
+                          {isEditing ? (
+                            <View style={{ gap: 10 }}>
+                              <TextInput 
+                                value={editTeacherData.name} 
+                                onChangeText={(v) => setEditTeacherData(d => ({ ...d, name: v }))} 
+                                placeholder="Teacher Name" 
+                                style={{ backgroundColor: '#fff', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 13, color: '#334155' }} 
+                              />
+                              <TextInput 
+                                value={editTeacherData.subject} 
+                                onChangeText={(v) => setEditTeacherData(d => ({ ...d, subject: v }))} 
+                                placeholder="Subject / Role (e.g. Class Teacher)" 
+                                style={{ backgroundColor: '#fff', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 13, color: '#334155' }} 
+                              />
+                              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
+                                <TouchableOpacity onPress={() => setEditingTeacherIndex(null)} style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#e2e8f0', borderRadius: 8 }}>
+                                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#475569' }}>Cancel</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={handleSaveEditTeacher} style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#2563eb', borderRadius: 8 }}>
+                                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#fff' }}>Save</Text>
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          ) : (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#2563eb', alignItems: 'center', justifyContent: 'center' }}>
+                                  <Text style={{ color: '#fff', fontWeight: '900', fontSize: 14 }}>{initial}</Text>
+                                </View>
+                                <View>
+                                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#1e293b' }}>{t.name}</Text>
+                                  <Text style={{ fontSize: 11, fontWeight: '600', color: '#64748b', marginTop: 1 }}>
+                                    {t.subject || 'Class Teacher'} • {Array.isArray(t.classes) && t.classes.length > 0 ? t.classes.join(', ') : 'No class assigned'}
+                                  </Text>
+                                </View>
+                              </View>
+                              <View style={{ flexDirection: 'row', gap: 8 }}>
+                                <TouchableOpacity onPress={() => handleStartEditTeacher(idx)} style={{ padding: 6, backgroundColor: '#eff6ff', borderRadius: 8 }}>
+                                  <Edit2 size={13} color="#2563eb" />
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => handleDeleteTeacher(idx)} style={{ padding: 6, backgroundColor: '#fef2f2', borderRadius: 8 }}>
+                                  <Trash2 size={13} color="#ef4444" />
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })}
+                  </View>
+
+                  {/* Add Teacher Form Container */}
+                  <View style={{ backgroundColor: '#eff6ff', borderColor: '#dbeafe', borderWidth: 1, borderRadius: 16, padding: 14 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '900', color: '#1e40af', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>+ Add Teacher</Text>
+                    <View style={{ gap: 8 }}>
+                      <TextInput 
+                        placeholder="Teacher name" 
+                        value={newTeacherName}
+                        onChangeText={setNewTeacherName}
+                        placeholderTextColor="#a3a3a3"
+                        style={{ backgroundColor: '#fff', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, color: '#334155' }}
+                      />
+                      <TextInput 
+                        placeholder="Subject / Role (e.g. Class Teacher)" 
+                        value={newTeacherSubject}
+                        onChangeText={setNewTeacherSubject}
+                        placeholderTextColor="#a3a3a3"
+                        style={{ backgroundColor: '#fff', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, color: '#334155' }}
+                      />
+
+                      <TouchableOpacity onPress={handleAddTeacher} style={{ backgroundColor: '#1d4ed8', paddingVertical: 10, borderRadius: 10, alignItems: 'center', marginTop: 4 }}>
+                        <Text style={{ color: '#fff', fontWeight: '900', fontSize: 13 }}>Add Teacher</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+
+                {/* 3. Role Permissions Card */}
+                <View style={{ backgroundColor: '#ffffff', borderRadius: 24, borderWidth: 1, borderColor: '#e2e8f0', padding: 18, shadowColor: '#0f172a', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 16, elevation: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                    <Text style={{ fontSize: 18 }}>🔐</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '900', color: '#0f172a' }}>Role Permissions</Text>
+                  </View>
+
+                  {/* Role tabs */}
+                  <View style={{ flexDirection: 'row', gap: 6, marginBottom: 16 }}>
+                    {["Super Admin", "Teacher", "Parent Viewer"].map(r => (
+                      <TouchableOpacity 
+                        key={r} 
+                        onPress={() => setActiveRole(r)}
+                        style={{
+                          flex: 1,
+                          paddingVertical: 8,
+                          borderRadius: 10,
+                          alignItems: 'center',
+                          backgroundColor: activeRole === r ? '#7c3aed' : '#f1f5f9',
+                        }}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: '800', color: activeRole === r ? '#fff' : '#64748b' }}>{r}</Text>
+                      </TouchableOpacity>
                     ))}
                   </View>
-                </View>
 
-                {/* Add New Class */}
-                <View style={styles.sectionInnerCard}>
-                  <Text style={styles.sectionInnerTitle}>➕ Add New Classroom</Text>
-                  <View style={{ gap: 12 }}>
-                    <TextInput 
-                      placeholder="Class Name (e.g. KG)" 
-                      value={newClassName}
-                      onChangeText={setNewClassName}
-                      style={styles.textInput}
-                    />
-                    
-                    <TextInput 
-                      placeholder="Section (e.g. B)" 
-                      value={newClassSection}
-                      onChangeText={setNewClassSection}
-                      style={styles.textInput}
-                    />
+                  {/* Active Role's Allowed Permissions list */}
+                  <View style={{ backgroundColor: '#faf5ff', borderColor: '#f3e8ff', borderWidth: 1, borderRadius: 16, padding: 14 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '900', color: '#6d28d9', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 }}>
+                      {activeRole === "Super Admin" ? "Full Access" : activeRole === "Teacher" ? "Standard Access" : "Read Only Access"}
+                    </Text>
+                    <View style={{ gap: 10 }}>
+                      {[
+                        { perm: "View reports", label: "View Reports" },
+                        { perm: "Manage attendance", label: "Manage Attendance" },
+                        { perm: "Delete students", label: "Delete Students" },
+                        { perm: "Configure settings", label: "Configure Settings" },
+                        { perm: "Manage teachers", label: "Manage Teachers" },
+                        { perm: "Add wellness notes", label: "Add Wellness Notes" },
+                        { perm: "View own child report", label: "View own Child Report" }
+                      ].map(item => {
+                        const isAllowed = 
+                          (activeRole === "Super Admin" && ["View reports", "Manage attendance", "Delete students", "Configure settings", "Manage teachers"].includes(item.perm)) ||
+                          (activeRole === "Teacher" && ["View reports", "Manage attendance", "Add wellness notes"].includes(item.perm)) ||
+                          (activeRole === "Parent Viewer" && ["View own child report"].includes(item.perm));
 
-                    <TextInput 
-                      placeholder="Assign Teacher Name" 
-                      value={newClassTeacher}
-                      onChangeText={setNewClassTeacher}
-                      style={styles.textInput}
-                    />
-
-                    <TouchableOpacity onPress={handleAddClass} style={styles.addButton}>
-                      <Plus size={16} color="#fff" />
-                      <Text style={{ color: '#fff', fontWeight: '900', fontSize: 13 }}>Create Classroom</Text>
-                    </TouchableOpacity>
+                        return (
+                          <View key={item.perm} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <View style={{
+                              width: 16,
+                              height: 16,
+                              borderRadius: 8,
+                              backgroundColor: isAllowed ? '#d1fae5' : '#fee2e2',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}>
+                              <Text style={{ fontSize: 9, fontWeight: '900', color: isAllowed ? '#065f46' : '#991b1b', textAlign: 'center', lineHeight: 16 }}>
+                                {isAllowed ? "✓" : "✗"}
+                              </Text>
+                            </View>
+                            <Text style={{ fontSize: 13, fontWeight: '600', color: isAllowed ? '#334155' : '#94a3b8' }}>
+                              {item.label}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                    </View>
                   </View>
                 </View>
               </View>
@@ -1555,24 +2225,106 @@ export default function SettingsScreen() {
                       <Text style={styles.sectionInnerTitle}>🔑 Expiration & Entry Rules</Text>
                       
                       <View style={{ gap: 14 }}>
-                        <Text style={styles.inputLabel}>AUTO-EXPIRATION VALUE</Text>
-                        <View style={{ flexDirection: 'row', gap: 10 }}>
-                          <TextInput 
-                            keyboardType="numeric"
-                            value={String(otpExpValue)}
-                            onChangeText={v => setOtpExpValue(Number(v) || 0)}
-                            style={[styles.textInput, { flex: 1 }]}
-                          />
-                          <View style={[styles.segmentSelectorContainer, { flex: 1.5, padding: 2 }]}>
-                            {["Days", "Months", "Years"].map(unit => (
+                        {/* Styled Auto-Expiration Timer */}
+                        <View style={{ 
+                          flexDirection: 'row', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center', 
+                          paddingVertical: 12,
+                          borderBottomWidth: 1, 
+                          borderBottomColor: '#f1f5f9',
+                          zIndex: 100
+                        }}>
+                          <View style={{ flex: 1, paddingRight: 16 }}>
+                            <Text style={{ fontSize: 13, fontWeight: '800', color: '#ea580c' }}>⏱️ Auto-Expiration Timer</Text>
+                            <Text style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>
+                              Set how long until an OTP expires and regenerates automatically.
+                            </Text>
+                          </View>
+                          
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, zIndex: 101 }}>
+                            <TextInput 
+                              keyboardType="numeric"
+                              value={String(otpExpValue)}
+                              onChangeText={v => setOtpExpValue(Number(v) || 0)}
+                              style={[styles.textInput, { 
+                                width: 50, 
+                                textAlign: 'center', 
+                                fontWeight: '800', 
+                                borderColor: '#e2e8f0',
+                                paddingVertical: 8,
+                                paddingHorizontal: 4
+                              }]}
+                            />
+                            
+                            <View style={{ position: 'relative', zIndex: 102 }}>
                               <TouchableOpacity 
-                                key={unit}
-                                onPress={() => setOtpExpUnit(unit)}
-                                style={[styles.segmentBtn, otpExpUnit === unit && styles.segmentBtnActive, { paddingVertical: 6 }]}
+                                onPress={() => setIsExpUnitDropdownOpen(!isExpUnitDropdownOpen)}
+                                activeOpacity={0.7}
+                                style={{
+                                  flexDirection: 'row',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  borderColor: '#ea580c',
+                                  borderWidth: 1.5,
+                                  borderRadius: 10,
+                                  backgroundColor: '#fff',
+                                  paddingVertical: 8,
+                                  paddingHorizontal: 12,
+                                  width: 100,
+                                }}
                               >
-                                <Text style={{ fontSize: 10, fontWeight: '800', color: otpExpUnit === unit ? '#0f172a' : '#64748b' }}>{unit}</Text>
+                                <Text style={{ fontSize: 12, fontWeight: '800', color: '#ea580c' }}>
+                                  {otpExpUnit}
+                                </Text>
+                                <ChevronDown size={14} color="#ea580c" />
                               </TouchableOpacity>
-                            ))}
+
+                              {isExpUnitDropdownOpen && (
+                                <View style={{
+                                  position: 'absolute',
+                                  top: 42,
+                                  right: 0,
+                                  width: 100,
+                                  backgroundColor: '#fff',
+                                  borderRadius: 10,
+                                  borderWidth: 1.5,
+                                  borderColor: '#ea580c',
+                                  shadowColor: '#000',
+                                  shadowOffset: { width: 0, height: 2 },
+                                  shadowOpacity: 0.1,
+                                  shadowRadius: 4,
+                                  elevation: 5,
+                                  zIndex: 1000,
+                                  overflow: 'hidden'
+                                }}>
+                                  {["Hours", "Days", "Months", "Years"].map(unit => (
+                                    <TouchableOpacity
+                                      key={unit}
+                                      onPress={() => {
+                                        setOtpExpUnit(unit);
+                                        setIsExpUnitDropdownOpen(false);
+                                      }}
+                                      style={{
+                                        paddingVertical: 8,
+                                        paddingHorizontal: 12,
+                                        backgroundColor: otpExpUnit === unit ? '#fff7ed' : '#fff',
+                                        borderBottomWidth: 1,
+                                        borderBottomColor: '#f1f5f9'
+                                      }}
+                                    >
+                                      <Text style={{ 
+                                        fontSize: 11, 
+                                        fontWeight: otpExpUnit === unit ? '800' : '600', 
+                                        color: otpExpUnit === unit ? '#ea580c' : '#475569' 
+                                      }}>
+                                        {unit}
+                                      </Text>
+                                    </TouchableOpacity>
+                                  ))}
+                                </View>
+                              )}
+                            </View>
                           </View>
                         </View>
 
@@ -1675,7 +2427,7 @@ export default function SettingsScreen() {
                           {showOtpSuggestions && (
                             <View style={styles.suggestionsContainer}>
                               {studentsList
-                                .filter(s => s.name.toLowerCase().includes(manualOtpSearch.toLowerCase()) || s.roll_number.toLowerCase().includes(manualOtpSearch.toLowerCase()))
+                                .filter(s => (s.name || "").toLowerCase().includes(manualOtpSearch.toLowerCase()) || (s.roll_number || "").toLowerCase().includes(manualOtpSearch.toLowerCase()))
                                 .slice(0, 4)
                                 .map(student => (
                                   <TouchableOpacity 
@@ -1685,10 +2437,37 @@ export default function SettingsScreen() {
                                       setManualOtpSearch(`${student.name} (${student.roll_number})`);
                                       setShowOtpSuggestions(false);
                                     }}
-                                    style={styles.suggestionItem}
+                                    style={[styles.suggestionItem, { flexDirection: 'row', alignItems: 'center', gap: 10 }]}
                                   >
-                                    <Text style={{ fontSize: 13, fontWeight: '800', color: '#1e293b' }}>{student.name}</Text>
-                                    <Text style={{ fontSize: 10, color: '#64748b' }}>Roll: {student.roll_number} • Class: {student.class_name}</Text>
+                                    {/* Small Avatar */}
+                                    <View style={{
+                                      width: 28,
+                                      height: 28,
+                                      borderRadius: 14,
+                                      backgroundColor: '#faf5ff',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      overflow: 'hidden',
+                                      borderWidth: 1,
+                                      borderColor: '#e9d5ff'
+                                    }}>
+                                      {student.profilePhoto ? (
+                                        <Image source={{ uri: student.profilePhoto }} style={{ width: 28, height: 28 }} />
+                                      ) : student.profile_photo ? (
+                                        <Image source={{ uri: student.profile_photo }} style={{ width: 28, height: 28 }} />
+                                      ) : student.avatar ? (
+                                        <Image source={{ uri: student.avatar }} style={{ width: 28, height: 28 }} />
+                                      ) : (
+                                        <Text style={{ fontSize: 10, fontWeight: '900', color: '#a855f7' }}>
+                                          {student.initial || (student.name ? student.name[0] : 'S')}
+                                        </Text>
+                                      )}
+                                    </View>
+
+                                    <View style={{ flex: 1 }}>
+                                      <Text style={{ fontSize: 13, fontWeight: '800', color: '#1e293b' }}>{student.name}</Text>
+                                      <Text style={{ fontSize: 10, color: '#64748b' }}>Roll: {student.roll_number} • Class: {student.class_name}</Text>
+                                    </View>
                                   </TouchableOpacity>
                                 ))}
                             </View>
@@ -1723,17 +2502,62 @@ export default function SettingsScreen() {
                     <View style={styles.sectionInnerCard}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                         <Text style={styles.sectionInnerTitle}>📋 Student PIN Database</Text>
-                        <TextInput 
-                          placeholder="Quick search..."
-                          value={otpSearchQuery}
-                          onChangeText={setOtpSearchQuery}
-                          style={[styles.textInput, { width: 120, paddingVertical: 6, paddingHorizontal: 10, fontSize: 11 }]}
-                        />
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <TouchableOpacity 
+                            onPress={handlePrint}
+                            activeOpacity={0.7}
+                            style={{ 
+                              flexDirection: 'row', 
+                              alignItems: 'center', 
+                              gap: 4, 
+                              backgroundColor: '#f1f5f9', 
+                              paddingVertical: 6, 
+                              paddingHorizontal: 10, 
+                              borderRadius: 10,
+                              borderWidth: 1,
+                              borderColor: '#e2e8f0'
+                            }}
+                          >
+                            <Printer size={12} color="#475569" />
+                            <Text style={{ fontSize: 11, fontWeight: '800', color: '#475569' }}>Print PDF</Text>
+                          </TouchableOpacity>
+                          <TextInput 
+                            placeholder="Quick search..."
+                            value={otpSearchQuery}
+                            onChangeText={setOtpSearchQuery}
+                            style={[styles.textInput, { width: 100, paddingVertical: 6, paddingHorizontal: 10, fontSize: 11, marginVertical: 0 }]}
+                          />
+                        </View>
                       </View>
 
                       <View style={{ gap: 10 }}>
                         {filteredStudents.slice(0, 10).map((std, idx) => (
                           <View key={idx} style={styles.classItemRow}>
+                            {/* Student Profile Avatar */}
+                            <View style={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: 18,
+                              backgroundColor: '#faf5ff',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              overflow: 'hidden',
+                              borderWidth: 1.5,
+                              borderColor: '#e9d5ff'
+                            }}>
+                              {std.profilePhoto ? (
+                                <Image source={{ uri: std.profilePhoto }} style={{ width: 36, height: 36 }} />
+                              ) : std.profile_photo ? (
+                                <Image source={{ uri: std.profile_photo }} style={{ width: 36, height: 36 }} />
+                              ) : std.avatar ? (
+                                <Image source={{ uri: std.avatar }} style={{ width: 36, height: 36 }} />
+                              ) : (
+                                <Text style={{ fontSize: 13, fontWeight: '900', color: '#a855f7' }}>
+                                  {std.initial || (std.name ? std.name[0] : 'S')}
+                                </Text>
+                              )}
+                            </View>
+
                             <View style={{ flex: 1 }}>
                               <Text style={{ fontSize: 13, fontWeight: '800', color: '#1e293b' }}>{std.name}</Text>
                               <Text style={{ fontSize: 10, color: '#64748b' }}>Roll: {std.roll_number} • Class: {std.class_name}</Text>
@@ -1947,7 +2771,7 @@ export default function SettingsScreen() {
                             {showQSuggestions && (
                               <View style={styles.suggestionsContainer}>
                                 {studentsList
-                                  .filter(s => s.name.toLowerCase().includes(newQTargetSearch.toLowerCase()) || s.roll_number.toLowerCase().includes(newQTargetSearch.toLowerCase()))
+                                  .filter(s => (s.name || "").toLowerCase().includes(newQTargetSearch.toLowerCase()) || (s.roll_number || "").toLowerCase().includes(newQTargetSearch.toLowerCase()))
                                   .slice(0, 4)
                                   .map(student => (
                                     <TouchableOpacity 
@@ -1957,10 +2781,37 @@ export default function SettingsScreen() {
                                         setNewQTargetSearch(`${student.name} (${student.roll_number})`);
                                         setShowQSuggestions(false);
                                       }}
-                                      style={styles.suggestionItem}
+                                      style={[styles.suggestionItem, { flexDirection: 'row', alignItems: 'center', gap: 10 }]}
                                     >
-                                      <Text style={{ fontSize: 13, fontWeight: '800', color: '#1e293b' }}>{student.name}</Text>
-                                      <Text style={{ fontSize: 10, color: '#64748b' }}>Roll: {student.roll_number} • Class: {student.class_name}</Text>
+                                      {/* Small Avatar */}
+                                      <View style={{
+                                        width: 28,
+                                        height: 28,
+                                        borderRadius: 14,
+                                        backgroundColor: '#faf5ff',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        overflow: 'hidden',
+                                        borderWidth: 1,
+                                        borderColor: '#e9d5ff'
+                                      }}>
+                                        {student.profilePhoto ? (
+                                          <Image source={{ uri: student.profilePhoto }} style={{ width: 28, height: 28 }} />
+                                        ) : student.profile_photo ? (
+                                          <Image source={{ uri: student.profile_photo }} style={{ width: 28, height: 28 }} />
+                                        ) : student.avatar ? (
+                                          <Image source={{ uri: student.avatar }} style={{ width: 28, height: 28 }} />
+                                        ) : (
+                                          <Text style={{ fontSize: 10, fontWeight: '900', color: '#a855f7' }}>
+                                            {student.initial || (student.name ? student.name[0] : 'S')}
+                                          </Text>
+                                        )}
+                                      </View>
+
+                                      <View style={{ flex: 1 }}>
+                                        <Text style={{ fontSize: 13, fontWeight: '800', color: '#1e293b' }}>{student.name}</Text>
+                                        <Text style={{ fontSize: 10, color: '#64748b' }}>Roll: {student.roll_number} • Class: {student.class_name}</Text>
+                                      </View>
                                     </TouchableOpacity>
                                   ))}
                               </View>

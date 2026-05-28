@@ -10,7 +10,9 @@ import {
   ActivityIndicator,
   StyleSheet,
   Pressable,
-  Modal
+  Modal,
+  Platform,
+  Alert
 } from 'react-native';
 import {
   Search,
@@ -311,6 +313,169 @@ export default function AlertsScreen() {
     }
   };
 
+  const handlePrint = () => {
+    if (Platform.OS === 'web') {
+      const printWindow = window.open('', '_blank', 'width=1000,height=800');
+      if (!printWindow) return;
+
+      const rowsHtml = filteredAlerts.map(a => {
+        const pClass = a.score <= 2 ? 'priority-high' : a.score <= 4 ? 'priority-med' : 'priority-low';
+        const sClass = a.isResolved ? 'status-resolved' : 'status-new';
+        return `
+          <tr>
+            <td>
+              <div class="student-name">${a.firstName} ${a.lastInitial}</div>
+              <div class="student-meta">Roll: ${a.rollNumber}</div>
+            </td>
+            <td style="font-weight: bold; color: #475569;">
+              ${a.class}
+            </td>
+            <td style="font-weight: bold;">Today</td>
+            <td>
+              <div class="score ${pClass}">${a.score}/10 ${a.emoji}</div>
+              <div class="student-meta">${a.score <= 2 ? 'High' : a.score <= 4 ? 'Medium' : 'Low'} Priority</div>
+            </td>
+            <td>
+              <div class="alert-desc">Student checked in with a low score (${a.score}/10) and requires attention.</div>
+              <div class="ai-desc">AI Note: ${a.aiSuggestion}</div>
+            </td>
+            <td class="${sClass}">
+              ${a.isResolved ? '✓ Resolved' : '⚠ Action Needed'}
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      const emptyHtml = filteredAlerts.length === 0 ? '<tr><td colspan="6" style="text-align:center; padding: 30px; font-weight:bold; color:#94a3b8;">No alerts found for this selection.</td></tr>' : '';
+
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Student Wellness Alerts</title>
+            <style>
+              @page { size: letter portrait; margin: 0.5in; }
+              body { 
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+                padding: 0; 
+                margin: 0; 
+                color: #0f172a;
+              }
+              .container { padding: 20px; max-width: 100%; margin: 0 auto; }
+              .header { 
+                text-align: center; 
+                margin-bottom: 30px; 
+                padding-bottom: 15px; 
+                border-bottom: 2px solid #e2e8f0;
+              }
+              .header h2 { 
+                margin: 0 0 10px 0; 
+                font-size: 28px; 
+                font-weight: 900; 
+                text-transform: uppercase;
+                letter-spacing: 1px;
+              }
+              .header p { 
+                margin: 0; 
+                color: #64748b; 
+                font-size: 14px; 
+                font-weight: bold;
+              }
+              table { 
+                width: 100%; 
+                border-collapse: collapse; 
+                margin-top: 20px; 
+              }
+              th { 
+                background: #f8fafc; 
+                padding: 12px; 
+                text-align: left; 
+                font-size: 12px; 
+                text-transform: uppercase; 
+                font-weight: 900; 
+                color: #475569; 
+                border: 1px solid #cbd5e1; 
+              }
+              td { 
+                padding: 12px; 
+                border: 1px solid #e2e8f0; 
+                font-size: 14px; 
+              }
+              .student-name { font-weight: 800; color: #1e293b; font-size: 16px; margin-bottom: 4px; }
+              .student-meta { color: #64748b; font-size: 12px; font-weight: 600; }
+              .score { font-weight: 900; font-size: 16px; display: flex; align-items: center; gap: 5px; }
+              .priority-high { color: #dc2626; }
+              .priority-med { color: #ea580c; }
+              .priority-low { color: #ca8a04; }
+              .status-resolved { color: #16a34a; font-weight: bold; }
+              .status-new { color: #dc2626; font-weight: bold; }
+              .alert-desc { font-weight: 700; color: #334155; margin-bottom: 4px; }
+              .ai-desc { font-size: 12px; color: #64748b; font-style: italic; }
+              .footer { 
+                margin-top: 40px; 
+                text-align: center; 
+                font-size: 12px; 
+                color: #94a3b8; 
+                border-top: 1px solid #e2e8f0; 
+                padding-top: 10px; 
+              }
+              .print-btn {
+                display: block;
+                width: 200px;
+                margin: 20px auto;
+                padding: 12px 24px;
+                background: #3b82f6;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-weight: bold;
+                cursor: pointer;
+              }
+              @media print {
+                .print-btn { display: none; }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <button class="print-btn" onclick="window.print()">🖨️ Print Document</button>
+              <div class="header">
+                <h2>Smart Alerts Report</h2>
+                <p>Date: ${new Date().toLocaleDateString()} ${searchQuery ? `| Search: ${searchQuery}` : ''}</p>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Student Info</th>
+                    <th>Class / Section</th>
+                    <th>Time</th>
+                    <th>Rating</th>
+                    <th style="width: 35%">Alert Details</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rowsHtml}
+                  ${emptyHtml}
+                </tbody>
+              </table>
+              <div class="footer">
+                Generated by Student Attendance and Engagement Platform &bull; ${new Date().toLocaleString()}
+              </div>
+            </div>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+      }, 500);
+    } else {
+      Alert.alert("Print PDF", "Print list generated! Please use the web dashboard to print/save this wellness alert list as a PDF.");
+    }
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: '#fcfcfc' }}>
       <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 110 }}>
@@ -337,7 +502,7 @@ export default function AlertsScreen() {
         </MotiView>
 
         {/* ── TOP RIGHT PANEL ACTIONS Stack ── */}
-        <View style={{ flexDirection: 'row', gap: 10, marginBottom: 18 }}>
+        <View style={{ flexDirection: 'row', gap: 10, marginBottom: 18, alignItems: 'center' }}>
           <View style={styles.searchContainer}>
             <Search size={14} color="#94a3b8" />
             <TextInput
@@ -352,6 +517,24 @@ export default function AlertsScreen() {
             <Clock size={13} color="#8b5cf6" />
             <Text style={{ color: '#8b5cf6', fontWeight: '900', fontSize: 11 }}>{currentDateFormatted}</Text>
           </View>
+          <TouchableOpacity 
+            onPress={handlePrint}
+            activeOpacity={0.7}
+            style={{ 
+              flexDirection: 'row', 
+              alignItems: 'center', 
+              gap: 4, 
+              backgroundColor: '#f1f5f9', 
+              paddingVertical: 8, 
+              paddingHorizontal: 12, 
+              borderRadius: 10,
+              borderWidth: 1,
+              borderColor: '#e2e8f0'
+            }}
+          >
+            <Printer size={12} color="#475569" />
+            <Text style={{ fontSize: 11, fontWeight: '800', color: '#475569' }}>Print PDF</Text>
+          </TouchableOpacity>
         </View>
 
         {/* ── EMERGENCY PROTOCOL CARD ── */}
@@ -689,6 +872,18 @@ export default function AlertsScreen() {
                     {/* Middle Column: Student details & Suggestion */}
                     <View style={{ flex: 1, paddingRight: 6 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        {item.profilePhoto ? (
+                          <Image 
+                            source={{ uri: item.profilePhoto }} 
+                            style={{ width: 24, height: 24, borderRadius: 12, borderWidth: 1, borderColor: '#fee2e2' }} 
+                          />
+                        ) : (
+                          <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#fef2f2', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#fee2e2' }}>
+                            <Text style={{ fontSize: 9, fontWeight: '900', color: '#ef4444' }}>
+                              {item.firstName?.[0] || 'S'}
+                            </Text>
+                          </View>
+                        )}
                         <Text style={styles.criticalStudentName}>{item.firstName} {item.lastInitial}</Text>
                         <Text style={styles.criticalRollText}>Roll: {item.rollNumber}</Text>
                       </View>
