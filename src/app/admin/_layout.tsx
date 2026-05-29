@@ -10,7 +10,7 @@ function TabBarIcon({ focused, IconComponent, name }: { focused: boolean, IconCo
   return (
     <View style={[styles.tabIconContainer, focused && styles.tabIconContainerFocused]}>
       <IconComponent size={20} color={focused ? "#9333ea" : "#94a3b8"} />
-      <Text style={[styles.tabLabel, { color: focused ? "#9333ea" : "#94a3b8" }]}>{name}</Text>
+      <Text style={[styles.tabLabel, { color: focused ? "#9333ea" : "#94a3b8" }]} numberOfLines={1}>{name}</Text>
       {focused && <View style={styles.activeDot} />}
     </View>
   );
@@ -191,9 +191,10 @@ const styles = StyleSheet.create({
   tabIconContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 12,
-    paddingHorizontal: 12,
+    paddingTop: Platform.OS === 'web' ? 12 : 8,
+    paddingHorizontal: Platform.OS === 'web' ? 12 : 2,
     borderRadius: 16,
+    width: Platform.OS === 'web' ? 'auto' : (width / 5) - 4,
   },
   tabIconContainerFocused: {
     backgroundColor: '#faf5ff',
