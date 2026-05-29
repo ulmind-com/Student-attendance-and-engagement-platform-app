@@ -549,7 +549,8 @@ export default function LoginScreen() {
                         onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
                         placeholder="Start typing your name..."
                         placeholderTextColor="#94a3b8"
-                        className={`w-full ${selectedStudent?.profilePhoto ? 'pl-14' : 'pl-14'} pr-4 py-4 bg-slate-50/50 border-2 border-slate-100 rounded-2xl text-slate-800 font-bold text-sm`}
+                        style={{ color: '#1e293b' }}
+                        className={`w-full ${selectedStudent?.profilePhoto ? 'pl-14' : 'pl-14'} pr-4 py-4 bg-slate-50/50 border-2 border-slate-100 rounded-2xl font-bold text-sm`}
                       />
                     </View>
                     
@@ -594,7 +595,8 @@ export default function LoginScreen() {
                         placeholder="Enter your roll number"
                         placeholderTextColor="#94a3b8"
                         editable={!selectedStudent}
-                        className={`w-full pl-[3.25rem] pr-4 py-4 border-2 rounded-2xl text-slate-800 font-bold text-sm ${
+                        style={{ color: '#1e293b' }}
+                        className={`w-full pl-[3.25rem] pr-4 py-4 border-2 rounded-2xl font-bold text-sm ${
                           selectedStudent ? "bg-green-50/50 border-green-200" : "bg-slate-50/50 border-slate-100"
                         }`}
                       />
@@ -673,7 +675,8 @@ export default function LoginScreen() {
                     onChangeText={setTeacherUsername}
                     placeholder="Enter username"
                     autoCapitalize="none"
-                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl text-slate-800 font-bold text-sm"
+                    style={{ color: '#1e293b' }}
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold text-sm"
                   />
                 </View>
               </View>
@@ -686,7 +689,8 @@ export default function LoginScreen() {
                     onChangeText={setTeacherPassword}
                     placeholder="Enter password"
                     secureTextEntry
-                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl text-slate-800 font-bold text-sm"
+                    style={{ color: '#1e293b' }}
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold text-sm"
                   />
                 </View>
               </View>
